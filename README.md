@@ -21,9 +21,10 @@ No internet, no API keys, no model downloads — just Python 3 and a local knowl
 - ✅ Zero external dependencies (Python standard library only)
 - ✅ Conversation context memory — ask about "this tool" or "it"
 - ✅ Covers Core Linux, Networking/Recon, and Pentest tools
+- ✅ 795+ tool entries, including the full Kali Linux tools list
 - ✅ Suggests commands with descriptions and safety warnings
 - ✅ Explains flags and options
-- ✅ Shows examples, all commands, and install steps
+- ✅ Shows examples, all commands, install steps, and step-by-step guides
 - ✅ Searches the knowledge base
 - ✅ Saves favorite commands locally
 - ✅ Can run suggested commands after explicit confirmation
@@ -82,6 +83,7 @@ LinuxBot: Execution cancelled.
 | Show examples | `show examples for nmap` |
 | All commands | `all commands for nmap` |
 | Install steps | `how to install nmap` |
+| Step-by-step guide | `guide me through nmap`, `how to use nmap` |
 | List tools | `list tools`, `show tools` |
 | Search | `search sql injection`, `find command for wifi` |
 | Save command | `save last`, `favorite` |
