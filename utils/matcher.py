@@ -261,6 +261,25 @@ class LinuxBot:
             score += len(query_set & desc_words) * 1
             ratio = SequenceMatcher(None, query_norm, task).ratio()
             score += ratio * 30
+
+            # Phrase boosts for common task-specific requests
+            phrase_boosts = {
+                "scan ports": ["open ports", "all ports", "comprehensive scan"],
+                "scan all ports": ["all ports", "comprehensive scan", "-p-"],
+                "check ports": ["open ports", "all ports"],
+                "all ports": ["all ports", "comprehensive scan", "-p-"],
+                "scan network": ["network range", "live hosts", "discover"],
+                "connected devices": ["live hosts", "network range", "discover"],
+                "transfer file": ["transfer", "send file", "receive file"],
+                "brute force": ["brute", "dictionary", "password"],
+                "full scan": ["comprehensive scan", "all ports"],
+            }
+            for phrase, hints in phrase_boosts.items():
+                if phrase in query_norm:
+                    for hint in hints:
+                        if hint in task or hint in desc or hint in cmd.get("command", ""):
+                            score += 25
+
             if score > best_score:
                 best_score = score
                 best = cmd
