@@ -35,6 +35,11 @@ INTENT_KEYWORDS = {
         "all commands", "every command", "all tasks", "what can it do",
         "show all commands", "list commands", "commands for",
     ],
+    "guide": [
+        "guide", "walk me through", "step by step", "how do i use",
+        "how to use", "steps to use", "tutorial", "teach me",
+        "how should i start", "how can i use", "usage guide",
+    ],
     "explain": [
         "explain", "what does", "meaning", "mean", "break down",
         "what is flag", "what is option", "what is -", "what does -",
@@ -88,6 +93,7 @@ class LinuxBot:
         self.data_dir = Path(self.data_dir)
         self.kb = self._load_kb()
         self.tools = self.kb.get("tools", [])
+        self._merge_kali_tools()
         self.tool_names = [t["name"].lower() for t in self.tools]
         self.categories = self.kb.get("categories", [])
         # Conversation context
@@ -102,6 +108,17 @@ class LinuxBot:
     def _load_kb(self):
         with open(self.kb_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def _merge_kali_tools(self):
+        kali_path = self.data_dir / "kali_tools.json"
+        if not kali_path.exists():
+            return
+        with open(kali_path, "r", encoding="utf-8") as f:
+            kali_kb = json.load(f)
+        existing = {t["name"].lower() for t in self.tools}
+        for tool in kali_kb.get("tools", []):
+            if tool["name"].lower() not in existing:
+                self.tools.append(tool)
 
     def _load_session(self):
         self.favorites_path = self.data_dir / "favorites.json"
@@ -391,6 +408,7 @@ class LinuxBot:
                     "  'show examples for nmap'\n"
                     "  'all commands for nmap'\n"
                     "  'how to install nmap'\n"
+                    "  'guide me through nmap' or 'how to use nmap'\n"
                     "  'list tools'\n"
                     "  'search sql injection'\n"
                     "  'save last' (save the last command shown)\n"
@@ -478,6 +496,15 @@ class LinuxBot:
                 self._update_context(tool_name=tool["name"], intent="all_commands")
                 return {"type": "all_commands", "tool": tool}
             return {"type": "all_commands", "text": f"I don't know a tool named '{tool_name}'."}
+
+        if intent == "guide":
+            if not tool_name:
+                return {"type": "guide", "text": "Which tool do you want a guide for? Try: 'guide me through nmap' or 'how to use nmap'."}
+            tool = self._find_tool(tool_name)
+            if tool:
+                self._update_context(tool_name=tool["name"], intent="guide")
+                return {"type": "guide", "tool": tool}
+            return {"type": "guide", "text": f"I don't know a tool named '{tool_name}'."}
 
         if intent == "describe":
             if not tool_name:

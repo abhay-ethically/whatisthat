@@ -134,6 +134,37 @@ def print_all_commands_response(response):
         say("No commands documented for this tool yet.")
 
 
+def print_guide_response(response):
+    tool = response["tool"]
+    is_skeleton = tool.get("category") == "kali" and len(tool.get("commands", [])) <= 1
+    say(f"Quick guide for {tool['name']}:")
+    print()
+    say(f"What it is: {tool['description']}")
+    print()
+    say("Steps to get started:")
+    print(f"  1. Install it: {command(tool.get('install', 'usually pre-installed'))}")
+    print("  2. Check built-in help to learn flags:")
+    print(f"     {command(tool['name'] + ' --help')}")
+    commands = tool.get("commands", [])
+    if commands and not is_skeleton:
+        print("  3. Try these common commands:")
+        for cmd in commands[:5]:
+            print(f"     {command(cmd['command'])}  # {cmd['task']}")
+    else:
+        print("  3. Read the manual page:")
+        print(f"     {command('man ' + tool['name'])}")
+    if tool.get("examples") and not is_skeleton:
+        print("  4. Example to copy:")
+        for ex in tool["examples"][:3]:
+            print(f"     {command(ex)}")
+    if is_skeleton:
+        print()
+        say("Tip: This entry is from the Kali tools list. Add detailed commands to data/knowledge_base.json if you want richer answers.")
+    if tool.get("safety_notes"):
+        print()
+        print(say_msg(warning(tool["safety_notes"])))
+
+
 def run_bot():
     base_dir = Path(__file__).resolve().parent
     kb_path = base_dir / "data" / "knowledge_base.json"
@@ -186,6 +217,8 @@ def run_bot():
             print_install_response(response)
         elif rtype == "all_commands":
             print_all_commands_response(response)
+        elif rtype == "guide":
+            print_guide_response(response)
         elif rtype == "list":
             print_list_response(response)
         elif rtype == "search":
