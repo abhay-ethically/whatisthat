@@ -1,0 +1,998 @@
+{
+  "version": "1.0.0",
+  "categories": ["core", "networking", "pentest"],
+  "tools": [
+    {
+      "name": "nmap",
+      "category": "networking",
+      "description": "Nmap (Network Mapper) is a free and open-source utility for network discovery and security auditing. It sends packets and analyzes responses to map networks, find live hosts, open ports, running services, and operating systems.",
+      "install": "sudo apt install nmap",
+      "commands": [
+        {"task": "scan common ports on a target", "command": "nmap <target>", "description": "Default SYN scan of the top 1000 ports."},
+        {"task": "check open ports", "command": "nmap -sS -p- <target>", "description": "Stealth SYN scan on all 65535 ports."},
+        {"task": "scan specific ports", "command": "nmap -p 22,80,443 <target>", "description": "Scan only the listed ports."},
+        {"task": "detect services and versions", "command": "nmap -sV <target>", "description": "Probe open ports to determine service/version info."},
+        {"task": "detect operating system", "command": "sudo nmap -O <target>", "description": "Enable OS detection (requires root for best results)."},
+        {"task": "run default scripts", "command": "nmap -sC <target>", "description": "Run a safe set of NSE scripts."},
+        {"task": "comprehensive scan", "command": "sudo nmap -sS -sV -sC -O -p- <target>", "description": "Full SYN scan with version, scripts, and OS detection."},
+        {"task": "scan network range", "command": "nmap 192.168.1.0/24", "description": "Scan every host in the CIDR range."},
+        {"task": "save output to file", "command": "nmap -oA scan_results <target>", "description": "Output in normal, XML, and grepable formats."}
+      ],
+      "flags": [
+        {"flag": "-sS", "description": "Stealth SYN scan (default for privileged users)", "example": "nmap -sS <target>"},
+        {"flag": "-sT", "description": "Connect scan (used when raw packets are not possible)", "example": "nmap -sT <target>"},
+        {"flag": "-sU", "description": "UDP scan", "example": "sudo nmap -sU <target>"},
+        {"flag": "-p", "description": "Port range or list", "example": "nmap -p 1-65535 <target>"},
+        {"flag": "-p-", "description": "Scan all 65535 ports", "example": "nmap -p- <target>"},
+        {"flag": "-sV", "description": "Version detection", "example": "nmap -sV <target>"},
+        {"flag": "-O", "description": "OS detection", "example": "sudo nmap -O <target>"},
+        {"flag": "-A", "description": "Aggressive scan (OS + version + scripts + traceroute)", "example": "sudo nmap -A <target>"},
+        {"flag": "-T4", "description": "Set timing template (0-5)", "example": "nmap -T4 <target>"},
+        {"flag": "-v", "description": "Increase verbosity", "example": "nmap -v <target>"},
+        {"flag": "-oN", "description": "Output to normal file", "example": "nmap -oN results.txt <target>"},
+        {"flag": "-oX", "description": "Output to XML file", "example": "nmap -oX results.xml <target>"},
+        {"flag": "--script", "description": "Run NSE scripts", "example": "nmap --script vuln <target>"}
+      ],
+      "examples": [
+        "nmap scanme.nmap.org",
+        "sudo nmap -sS -p 80,443 192.168.1.1",
+        "nmap -sV --script=banner 10.0.0.1"
+      ],
+      "safety_notes": "Only scan networks and hosts you own or have explicit written permission to test. Unauthorized scanning may be illegal or violate terms of service."
+    },
+    {
+      "name": "netdiscover",
+      "category": "networking",
+      "description": "Netdiscover is an active/passive ARP reconnaissance tool. It is useful for finding live hosts on a local network without needing to send ICMP packets.",
+      "install": "sudo apt install netdiscover",
+      "commands": [
+        {"task": "discover live hosts on local network", "command": "sudo netdiscover -i eth0 -r 192.168.1.0/24", "description": "Active ARP scan on the given interface and range."},
+        {"task": "passive mode discovery", "command": "sudo netdiscover -p", "description": "Listen to ARP traffic without sending packets."},
+        {"task": "scan with specific range", "command": "sudo netdiscover -r 10.0.0.0/24", "description": "Scan the specified CIDR range."},
+        {"task": "scan from file", "command": "sudo netdiscover -f targets.txt", "description": "Read target ranges from a file."}
+      ],
+      "flags": [
+        {"flag": "-i", "description": "Network interface", "example": "sudo netdiscover -i wlan0"},
+        {"flag": "-r", "description": "IP range in CIDR notation", "example": "sudo netdiscover -r 192.168.0.0/24"},
+        {"flag": "-p", "description": "Passive mode (no packets sent)", "example": "sudo netdiscover -p"},
+        {"flag": "-c", "description": "Number of ARP requests", "example": "sudo netdiscover -c 5"},
+        {"flag": "-f", "description": "Read ranges from file", "example": "sudo netdiscover -f ranges.txt"}
+      ],
+      "examples": [
+        "sudo netdiscover -i eth0 -r 192.168.1.0/24",
+        "sudo netdiscover -p -i wlan0"
+      ],
+      "safety_notes": "Use only on networks you administer. Active ARP scanning can trigger IDS/IPS alerts."
+    },
+    {
+      "name": "netcat",
+      "category": "networking",
+      "description": "Netcat (nc) is a versatile networking utility for reading/writing network connections using TCP or UDP. It is often called the 'Swiss Army knife' of networking.",
+      "install": "sudo apt install netcat-traditional # or netcat-openbsd",
+      "commands": [
+        {"task": "connect to a port", "command": "nc <target> 80", "description": "Open a TCP connection to port 80."},
+        {"task": "listen on a port", "command": "nc -lvnp 4444", "description": "Listen on port 4444 in verbose mode without resolving DNS."},
+        {"task": "banner grabbing", "command": "echo '' | nc -v <target> 80", "description": "Retrieve a service banner from a TCP port."},
+        {"task": "transfer file", "command": "nc -l -p 1234 > received.txt", "description": "Receive a file over the network. Sender: nc <ip> 1234 < file.txt"},
+        {"task": "port scanning", "command": "nc -zv <target> 1-1000", "description": "Simple TCP port scan of the first 1000 ports."},
+        {"task": "reverse shell listener", "command": "nc -lvnp 4444", "description": "Listen for an incoming shell connection."}
+      ],
+      "flags": [
+        {"flag": "-l", "description": "Listen mode", "example": "nc -l 4444"},
+        {"flag": "-v", "description": "Verbose output", "example": "nc -v <target> 80"},
+        {"flag": "-n", "description": "Do not resolve DNS", "example": "nc -n <target> 80"},
+        {"flag": "-p", "description": "Local port", "example": "nc -l -p 4444"},
+        {"flag": "-z", "description": "Zero-I/O mode (scanning)", "example": "nc -z <target> 1-100"},
+        {"flag": "-u", "description": "Use UDP instead of TCP", "example": "nc -u <target> 53"},
+        {"flag": "-e", "description": "Execute program on connection", "example": "nc -l -p 4444 -e /bin/bash"}
+      ],
+      "examples": [
+        "nc -zv 192.168.1.1 22",
+        "nc -lvnp 4444",
+        "echo 'GET / HTTP/1.1' | nc example.com 80"
+      ],
+      "safety_notes": "Never expose netcat listeners to untrusted networks. Reverse/bind shells can be illegal if used without authorization."
+    },
+    {
+      "name": "tcpdump",
+      "category": "networking",
+      "description": "Tcpdump is a powerful command-line packet analyzer. It captures and inspects network traffic in real time.",
+      "install": "sudo apt install tcpdump",
+      "commands": [
+        {"task": "capture packets on interface", "command": "sudo tcpdump -i eth0", "description": "Capture all packets on eth0."},
+        {"task": "capture to file", "command": "sudo tcpdump -i eth0 -w capture.pcap", "description": "Write captured packets to a pcap file."},
+        {"task": "read pcap file", "command": "tcpdump -r capture.pcap", "description": "Read packets from a saved pcap file."},
+        {"task": "filter by host", "command": "sudo tcpdump -i eth0 host 192.168.1.5", "description": "Show only traffic to/from a specific host."},
+        {"task": "filter by port", "command": "sudo tcpdump -i eth0 port 80", "description": "Show only traffic on port 80."},
+        {"task": "capture only syn packets", "command": "sudo tcpdump -i eth0 'tcp[13] & 2 != 0'", "description": "Filter for TCP SYN packets."}
+      ],
+      "flags": [
+        {"flag": "-i", "description": "Interface", "example": "sudo tcpdump -i wlan0"},
+        {"flag": "-w", "description": "Write to file", "example": "sudo tcpdump -w out.pcap"},
+        {"flag": "-r", "description": "Read from file", "example": "tcpdump -r out.pcap"},
+        {"flag": "-c", "description": "Capture N packets then stop", "example": "sudo tcpdump -c 100"},
+        {"flag": "-n", "description": "Do not resolve hostnames", "example": "sudo tcpdump -n"},
+        {"flag": "-nn", "description": "Do not resolve hostnames or port names", "example": "sudo tcpdump -nn"},
+        {"flag": "-v", "description": "Verbose", "example": "sudo tcpdump -v"},
+        {"flag": "-X", "description": "Print payload in hex and ASCII", "example": "sudo tcpdump -X"}
+      ],
+      "examples": [
+        "sudo tcpdump -i eth0 port 443",
+        "sudo tcpdump -i any -c 50 -w traffic.pcap",
+        "tcpdump -r traffic.pcap host 8.8.8.8"
+      ],
+      "safety_notes": "Capture only traffic you are authorized to monitor. Packet capture on shared networks may violate privacy laws."
+    },
+    {
+      "name": "arp-scan",
+      "category": "networking",
+      "description": "Arp-scan sends ARP packets to hosts on the local network and displays responses, making it easy to find live devices.",
+      "install": "sudo apt install arp-scan",
+      "commands": [
+        {"task": "scan local network", "command": "sudo arp-scan -l", "description": "Scan all hosts on local network interfaces."},
+        {"task": "scan specific interface", "command": "sudo arp-scan -I eth0 -l", "description": "Scan using a specific interface."},
+        {"task": "scan specific range", "command": "sudo arp-scan 192.168.1.0/24", "description": "Scan the given CIDR range."}
+      ],
+      "flags": [
+        {"flag": "-l", "description": "Scan local network", "example": "sudo arp-scan -l"},
+        {"flag": "-I", "description": "Interface", "example": "sudo arp-scan -I wlan0 -l"},
+        {"flag": "-f", "description": "Read targets from file", "example": "sudo arp-scan -f targets.txt"},
+        {"flag": "-g", "description": "Plain output (easier to parse)", "example": "sudo arp-scan -l -g"}
+      ],
+      "examples": [
+        "sudo arp-scan -l",
+        "sudo arp-scan -I eth0 192.168.1.0/24"
+      ],
+      "safety_notes": "Only use on networks you own or manage. ARP scans are detectable by network security tools."
+    },
+    {
+      "name": "masscan",
+      "category": "networking",
+      "description": "Masscan is an Internet-scale port scanner, much faster than nmap for large ranges, but less detailed.",
+      "install": "sudo apt install masscan",
+      "commands": [
+        {"task": "scan entire internet port", "command": "sudo masscan 0.0.0.0/0 -p80", "description": "Scan the entire IPv4 space on port 80 (extreme)."},
+        {"task": "scan local network fast", "command": "sudo masscan 192.168.1.0/24 -p1-65535 --rate 1000", "description": "Fast scan of a local network."},
+        {"task": "scan with banner grab", "command": "sudo masscan 192.168.1.0/24 -p80 --banners", "description": "Grab banners while scanning."}
+      ],
+      "flags": [
+        {"flag": "-p", "description": "Port(s) to scan", "example": "sudo masscan 10.0.0.0/8 -p80,443"},
+        {"flag": "--rate", "description": "Packets per second", "example": "sudo masscan 192.168.1.0/24 -p80 --rate 10000"},
+        {"flag": "--banners", "description": "Grab banners", "example": "sudo masscan 10.0.0.1 -p80 --banners"},
+        {"flag": "-oX", "description": "Output to XML", "example": "sudo masscan 192.168.1.0/24 -p80 -oX out.xml"}
+      ],
+      "examples": [
+        "sudo masscan 192.168.1.0/24 -p80,443 --rate 5000",
+        "sudo masscan 10.0.0.1 -p1-65535 --banners"
+      ],
+      "safety_notes": "Masscan can generate huge traffic. Only use on authorized networks and with appropriate rate limits."
+    },
+    {
+      "name": "traceroute",
+      "category": "networking",
+      "description": "Traceroute shows the route (network hops) that packets take to reach a target host.",
+      "install": "usually pre-installed; sudo apt install traceroute if missing",
+      "commands": [
+        {"task": "trace route to host", "command": "traceroute <target>", "description": "Display hops to target."},
+        {"task": "trace with ICMP", "command": "traceroute -I <target>", "description": "Use ICMP echo requests instead of UDP."},
+        {"task": "trace with TCP", "command": "traceroute -T <target>", "description": "Use TCP SYN for tracing (useful for firewalled hosts)."},
+        {"task": "limit max hops", "command": "traceroute -m 15 <target>", "description": "Stop after 15 hops."}
+      ],
+      "flags": [
+        {"flag": "-I", "description": "ICMP mode", "example": "traceroute -I 8.8.8.8"},
+        {"flag": "-T", "description": "TCP mode", "example": "traceroute -T example.com"},
+        {"flag": "-m", "description": "Max hops", "example": "traceroute -m 20 example.com"},
+        {"flag": "-n", "description": "Do not resolve hostnames", "example": "traceroute -n example.com"}
+      ],
+      "examples": [
+        "traceroute google.com",
+        "traceroute -n -m 15 1.1.1.1"
+      ],
+      "safety_notes": "Traceroute is generally safe, but some networks may block or log it."
+    },
+    {
+      "name": "ping",
+      "category": "networking",
+      "description": "Ping tests connectivity to a host by sending ICMP echo requests and waiting for replies.",
+      "install": "usually pre-installed; sudo apt install iputils-ping if missing",
+      "commands": [
+        {"task": "check host is alive", "command": "ping <target>", "description": "Send ICMP pings until stopped with Ctrl+C."},
+        {"task": "send limited pings", "command": "ping -c 4 <target>", "description": "Send only 4 packets."},
+        {"task": "ping with timeout", "command": "ping -c 4 -W 2 <target>", "description": "Wait 2 seconds for each reply."},
+        {"task": "ping specific interface", "command": "ping -I eth0 <target>", "description": "Send pings via a specific interface."}
+      ],
+      "flags": [
+        {"flag": "-c", "description": "Count", "example": "ping -c 5 google.com"},
+        {"flag": "-i", "description": "Interval between pings", "example": "ping -i 2 google.com"},
+        {"flag": "-W", "description": "Timeout in seconds", "example": "ping -W 3 google.com"},
+        {"flag": "-s", "description": "Packet size", "example": "ping -s 1024 google.com"},
+        {"flag": "-I", "description": "Interface", "example": "ping -I eth0 192.168.1.1"}
+      ],
+      "examples": [
+        "ping -c 4 8.8.8.8",
+        "ping -c 10 -i 0.5 192.168.1.1"
+      ],
+      "safety_notes": "Ping is safe and commonly used, but ICMP may be blocked by firewalls."
+    },
+    {
+      "name": "ip",
+      "category": "core",
+      "description": "The 'ip' command is the modern replacement for ifconfig. It is used to show and manipulate routing, network devices, interfaces, and tunnels.",
+      "install": "usually pre-installed; part of iproute2",
+      "commands": [
+        {"task": "show ip addresses", "command": "ip addr", "description": "Display all network interfaces and IP addresses."},
+        {"task": "show specific interface", "command": "ip addr show eth0", "description": "Show details for eth0."},
+        {"task": "show routing table", "command": "ip route", "description": "Display the routing table."},
+        {"task": "bring interface up", "command": "sudo ip link set eth0 up", "description": "Enable a network interface."},
+        {"task": "bring interface down", "command": "sudo ip link set eth0 down", "description": "Disable a network interface."},
+        {"task": "add ip address", "command": "sudo ip addr add 192.168.1.50/24 dev eth0", "description": "Assign a static IP to an interface."}
+      ],
+      "flags": [
+        {"flag": "addr", "description": "Address object", "example": "ip addr"},
+        {"flag": "link", "description": "Link/network device object", "example": "ip link show"},
+        {"flag": "route", "description": "Routing table object", "example": "ip route"},
+        {"flag": "neigh", "description": "ARP/NDP table", "example": "ip neigh"},
+        {"flag": "-s", "description": "Statistics", "example": "ip -s link"}
+      ],
+      "examples": [
+        "ip addr show",
+        "ip route | grep default",
+        "ip neigh"
+      ],
+      "safety_notes": "Changing network settings can disconnect you. Be careful when modifying interfaces remotely."
+    },
+    {
+      "name": "ss",
+      "category": "core",
+      "description": "ss is a utility to investigate sockets. It replaces netstat and is faster because it reads information directly from kernel.",
+      "install": "usually pre-installed; part of iproute2",
+      "commands": [
+        {"task": "show listening ports", "command": "ss -tlnp", "description": "Show TCP listening sockets with process info."},
+        {"task": "show all connections", "command": "ss -tan", "description": "Show all TCP connections numerically."},
+        {"task": "show UDP sockets", "command": "ss -uap", "description": "Show UDP sockets with process info."},
+        {"task": "show unix sockets", "command": "ss -x", "description": "Show Unix domain sockets."}
+      ],
+      "flags": [
+        {"flag": "-t", "description": "TCP sockets", "example": "ss -t"},
+        {"flag": "-u", "description": "UDP sockets", "example": "ss -u"},
+        {"flag": "-l", "description": "Listening sockets", "example": "ss -l"},
+        {"flag": "-a", "description": "All sockets", "example": "ss -a"},
+        {"flag": "-n", "description": "Numeric, no DNS resolve", "example": "ss -n"},
+        {"flag": "-p", "description": "Show process using socket", "example": "ss -p"},
+        {"flag": "-s", "description": "Summary", "example": "ss -s"}
+      ],
+      "examples": [
+        "ss -tlnp",
+        "ss -tan | grep ESTAB",
+        "ss -uap"
+      ],
+      "safety_notes": "Inspecting sockets is read-only and safe."
+    },
+    {
+      "name": "lsof",
+      "category": "core",
+      "description": "lsof (List Open Files) lists files opened by processes, including network sockets, devices, and regular files.",
+      "install": "sudo apt install lsof",
+      "commands": [
+        {"task": "files opened by process", "command": "lsof -p <pid>", "description": "List files opened by a specific PID."},
+        {"task": "process using port", "command": "sudo lsof -i :443", "description": "Find which process is using port 443."},
+        {"task": "network connections", "command": "sudo lsof -i", "description": "Show all network connections."},
+        {"task": "files in directory", "command": "lsof +D /var/log", "description": "List processes using files in /var/log."}
+      ],
+      "flags": [
+        {"flag": "-p", "description": "Process ID", "example": "lsof -p 1234"},
+        {"flag": "-i", "description": "Internet/network files", "example": "lsof -i :80"},
+        {"flag": "+D", "description": "Files in directory", "example": "lsof +D /tmp"},
+        {"flag": "-u", "description": "Files opened by user", "example": "lsof -u username"}
+      ],
+      "examples": [
+        "sudo lsof -i :22",
+        "lsof -p $$",
+        "sudo lsof -i TCP:443"
+      ],
+      "safety_notes": "lsof is read-only and safe to use."
+    },
+    {
+      "name": "find",
+      "category": "core",
+      "description": "find searches for files and directories in a directory hierarchy based on name, size, type, permissions, and more.",
+      "install": "usually pre-installed; sudo apt install findutils if missing",
+      "commands": [
+        {"task": "find file by name", "command": "find /path -name 'file.txt'", "description": "Search for files named file.txt."},
+        {"task": "find by extension", "command": "find . -name '*.py'", "description": "Find all .py files in current directory."},
+        {"task": "find directories", "command": "find . -type d", "description": "List all directories."},
+        {"task": "find large files", "command": "find . -size +100M", "description": "Find files larger than 100 MB."},
+        {"task": "find recently modified", "command": "find . -mtime -1", "description": "Files modified in the last 24 hours."},
+        {"task": "find with permissions", "command": "find . -perm 777", "description": "Files with 777 permissions."},
+        {"task": "execute command on results", "command": "find . -name '*.log' -exec rm {} \\;", "description": "Delete all .log files found."}
+      ],
+      "flags": [
+        {"flag": "-name", "description": "Match by name", "example": "find . -name '*.txt'"},
+        {"flag": "-type", "description": "File type (f=file, d=directory, l=link)", "example": "find . -type f"},
+        {"flag": "-size", "description": "Match by size", "example": "find . -size +1G"},
+        {"flag": "-mtime", "description": "Modified time in days", "example": "find . -mtime -7"},
+        {"flag": "-perm", "description": "Match permissions", "example": "find . -perm 644"},
+        {"flag": "-exec", "description": "Execute command on matches", "example": "find . -name '*.tmp' -exec rm {} \\;"},
+        {"flag": "-maxdepth", "description": "Limit search depth", "example": "find . -maxdepth 2 -name '*.py'"}
+      ],
+      "examples": [
+        "find /home -name '*.pdf'",
+        "find /var/log -type f -mtime +30 -delete",
+        "find . -type f -empty"
+      ],
+      "safety_notes": "Be careful with -exec rm or -delete. Test without -delete first using -print."
+    },
+    {
+      "name": "grep",
+      "category": "core",
+      "description": "grep searches text for lines matching a regular expression. It is one of the most used Linux utilities.",
+      "install": "usually pre-installed",
+      "commands": [
+        {"task": "search text in file", "command": "grep 'pattern' file.txt", "description": "Print lines matching pattern."},
+        {"task": "recursive search", "command": "grep -r 'pattern' /path", "description": "Search recursively through directories."},
+        {"task": "case insensitive", "command": "grep -i 'pattern' file.txt", "description": "Search case-insensitively."},
+        {"task": "invert match", "command": "grep -v 'pattern' file.txt", "description": "Show lines that do NOT match."},
+        {"task": "show line numbers", "command": "grep -n 'pattern' file.txt", "description": "Include line numbers in output."},
+        {"task": "count matches", "command": "grep -c 'pattern' file.txt", "description": "Count matching lines."},
+        {"task": "search with regex", "command": "grep -E '^[0-9]+' file.txt", "description": "Use extended regular expressions."}
+      ],
+      "flags": [
+        {"flag": "-i", "description": "Case-insensitive", "example": "grep -i error log.txt"},
+        {"flag": "-r", "description": "Recursive", "example": "grep -r 'main' src/"},
+        {"flag": "-v", "description": "Invert match", "example": "grep -v '^#' config.ini"},
+        {"flag": "-n", "description": "Line numbers", "example": "grep -n 'TODO' *.py"},
+        {"flag": "-c", "description": "Count matches", "example": "grep -c 'fail' log.txt"},
+        {"flag": "-E", "description": "Extended regex", "example": "grep -E 'foo|bar' file.txt"},
+        {"flag": "-o", "description": "Only matching part", "example": "grep -o '[0-9]\\+' file.txt"},
+        {"flag": "-A", "description": "Lines after match", "example": "grep -A 3 'error' log.txt"},
+        {"flag": "-B", "description": "Lines before match", "example": "grep -B 2 'error' log.txt"}
+      ],
+      "examples": [
+        "grep -rn 'password' /etc",
+        "ps aux | grep python",
+        "grep -E '^[a-z]+' words.txt"
+      ],
+      "safety_notes": "grep is read-only. Avoid grepping sensitive files on systems you don't own."
+    },
+    {
+      "name": "chmod",
+      "category": "core",
+      "description": "chmod changes file and directory permissions (read, write, execute) for user, group, and others.",
+      "install": "usually pre-installed",
+      "commands": [
+        {"task": "make file executable", "command": "chmod +x script.sh", "description": "Add execute permission for everyone."},
+        {"task": "set full permissions", "command": "chmod 755 script.sh", "description": "Owner rwx, group and others r-x."},
+        {"task": "remove write for others", "command": "chmod o-w file.txt", "description": "Remove write permission for others."},
+        {"task": "recursive permission change", "command": "chmod -R 755 directory/", "description": "Apply permissions recursively."},
+        {"task": "set SUID bit", "command": "chmod u+s binary", "description": "Set set-user-ID bit (use with caution)."}
+      ],
+      "flags": [
+        {"flag": "-R", "description": "Recursive", "example": "chmod -R 755 mydir"},
+        {"flag": "+x", "description": "Add execute", "example": "chmod +x app.bin"},
+        {"flag": "-w", "description": "Remove write", "example": "chmod -w file.txt"},
+        {"flag": "u+s", "description": "Set SUID bit", "example": "chmod u+s /usr/bin/some"},
+        {"flag": "g+s", "description": "Set SGID bit", "example": "chmod g+s directory"}
+      ],
+      "examples": [
+        "chmod 644 file.txt",
+        "chmod +x run.sh",
+        "chmod -R 700 ~/.ssh"
+      ],
+      "safety_notes": "Recursive chmod can break systems if used incorrectly. Double-check paths before applying."
+    },
+    {
+      "name": "chown",
+      "category": "core",
+      "description": "chown changes the owner and/or group of files and directories.",
+      "install": "usually pre-installed",
+      "commands": [
+        {"task": "change file owner", "command": "sudo chown user file.txt", "description": "Change owner of file.txt to user."},
+        {"task": "change owner and group", "command": "sudo chown user:group file.txt", "description": "Change both owner and group."},
+        {"task": "recursive ownership change", "command": "sudo chown -R user:group directory/", "description": "Recursively change owner and group."}
+      ],
+      "flags": [
+        {"flag": "-R", "description": "Recursive", "example": "sudo chown -R user:group /path"},
+        {"flag": "user:group", "description": "Set owner and group", "example": "sudo chown www-data:www-data file"},
+        {"flag": "--reference", "description": "Match permissions of reference file", "example": "sudo chown --reference=ref.txt target.txt"}
+      ],
+      "examples": [
+        "sudo chown $USER file.txt",
+        "sudo chown -R abhay:abhay /home/abhay/project"
+      ],
+      "safety_notes": "Changing ownership of system files can break the OS. Be especially careful with recursive chown."
+    },
+    {
+      "name": "ps",
+      "category": "core",
+      "description": "ps reports a snapshot of current processes. It is often combined with grep or sort.",
+      "install": "usually pre-installed",
+      "commands": [
+        {"task": "list all processes", "command": "ps aux", "description": "Show all processes for all users in BSD format."},
+        {"task": "find process by name", "command": "ps aux | grep <name>", "description": "Filter processes by name."},
+        {"task": "tree view", "command": "ps axjf", "description": "Show process tree."},
+        {"task": "user processes", "command": "ps -u <user>", "description": "Show processes for a specific user."}
+      ],
+      "flags": [
+        {"flag": "aux", "description": "All user processes (BSD style)", "example": "ps aux"},
+        {"flag": "-ef", "description": "Full format listing", "example": "ps -ef"},
+        {"flag": "-u", "description": "Process by user", "example": "ps -u abhay"},
+        {"flag": "--sort", "description": "Sort output", "example": "ps aux --sort=-%mem"}
+      ],
+      "examples": [
+        "ps aux | grep python",
+        "ps -ef | grep nginx",
+        "ps aux --sort=-%cpu | head"
+      ],
+      "safety_notes": "ps is read-only and safe."
+    },
+    {
+      "name": "hydra",
+      "category": "pentest",
+      "description": "Hydra is a fast network logon cracker supporting many protocols such as SSH, FTP, RDP, HTTP, and SMB.",
+      "install": "sudo apt install hydra",
+      "commands": [
+        {"task": "brute force ssh", "command": "hydra -l admin -P passwords.txt ssh://<target>", "description": "SSH brute-force with a user list and password list."},
+        {"task": "brute force ftp", "command": "hydra -L users.txt -P passwords.txt ftp://<target>", "description": "FTP brute-force with multiple users and passwords."},
+        {"task": "brute force http form", "command": "hydra -l admin -P passwords.txt <target> http-post-form '/login:username=^USER^&password=^PASS^:F=invalid'", "description": "Brute-force an HTTP login form."},
+        {"task": "brute force rdp", "command": "hydra -l admin -P passwords.txt rdp://<target>", "description": "RDP brute-force attack."}
+      ],
+      "flags": [
+        {"flag": "-l", "description": "Single username", "example": "hydra -l root -P pass.txt ssh://target"},
+        {"flag": "-L", "description": "Username list", "example": "hydra -L users.txt -P pass.txt ssh://target"},
+        {"flag": "-p", "description": "Single password", "example": "hydra -l admin -p password ssh://target"},
+        {"flag": "-P", "description": "Password list", "example": "hydra -l admin -P rockyou.txt ssh://target"},
+        {"flag": "-t", "description": "Number of parallel tasks", "example": "hydra -t 4 -l admin -P pass.txt ssh://target"},
+        {"flag": "-v", "description": "Verbose", "example": "hydra -v -l admin -P pass.txt ftp://target"},
+        {"flag": "-o", "description": "Output to file", "example": "hydra -o results.txt ssh://target"}
+      ],
+      "examples": [
+        "hydra -l root -P /usr/share/wordlists/rockyou.txt ssh://192.168.1.10",
+        "hydra -L users.txt -P pass.txt -t 6 ftp://10.0.0.5"
+      ],
+      "safety_notes": "Only use against systems you own or have explicit authorization to test. Unauthorized brute-forcing is illegal."
+    },
+    {
+      "name": "nikto",
+      "category": "pentest",
+      "description": "Nikto is a web server scanner that tests for dangerous files/CGIs, outdated server versions, and configuration issues.",
+      "install": "sudo apt install nikto",
+      "commands": [
+        {"task": "scan a website", "command": "nikto -h http://<target>", "description": "Basic Nikto scan against a web server."},
+        {"task": "scan with SSL", "command": "nikto -h https://<target>", "description": "Scan an HTTPS site."},
+        {"task": "scan specific port", "command": "nikto -h <target> -p 8080", "description": "Scan a web server on a non-standard port."},
+        {"task": "save scan output", "command": "nikto -h http://<target> -o nikto_results.txt", "description": "Save results to a file."}
+      ],
+      "flags": [
+        {"flag": "-h", "description": "Target host", "example": "nikto -h example.com"},
+        {"flag": "-p", "description": "Port", "example": "nikto -h target -p 8080"},
+        {"flag": "-o", "description": "Output file", "example": "nikto -h target -o out.txt"},
+        {"flag": "-Format", "description": "Output format", "example": "nikto -h target -o out.csv -Format csv"},
+        {"flag": "-ssl", "description": "Force SSL", "example": "nikto -h target -ssl"},
+        {"flag": "-Tuning", "description": "Test tuning options", "example": "nikto -h target -Tuning x"}
+      ],
+      "examples": [
+        "nikto -h http://192.168.1.10",
+        "nikto -h https://example.com -o nikto.txt"
+      ],
+      "safety_notes": "Only scan web servers you have permission to test. Nikto generates visible log entries."
+    },
+    {
+      "name": "gobuster",
+      "category": "pentest",
+      "description": "Gobuster is a tool used to brute-force URIs (directories and files), DNS subdomains, and virtual host names.",
+      "install": "sudo apt install gobuster",
+      "commands": [
+        {"task": "directory brute force", "command": "gobuster dir -u http://<target> -w /usr/share/wordlists/dirb/common.txt", "description": "Find hidden directories and files."},
+        {"task": "dns subdomain brute force", "command": "gobuster dns -d example.com -w /usr/share/wordlists/dns.txt", "description": "Enumerate DNS subdomains."},
+        {"task": "virtual host brute force", "command": "gobuster vhost -u http://<target> -w /usr/share/wordlists/vhosts.txt", "description": "Find virtual hosts."},
+        {"task": "fuzz with extensions", "command": "gobuster dir -u http://<target> -w wordlist.txt -x php,txt,bak", "description": "Search for files with specific extensions."}
+      ],
+      "flags": [
+        {"flag": "dir", "description": "Directory/file mode", "example": "gobuster dir -u target -w list.txt"},
+        {"flag": "dns", "description": "DNS mode", "example": "gobuster dns -d target -w list.txt"},
+        {"flag": "-u", "description": "Target URL", "example": "gobuster dir -u http://target -w list.txt"},
+        {"flag": "-w", "description": "Wordlist", "example": "gobuster dir -u target -w wordlist.txt"},
+        {"flag": "-x", "description": "File extensions", "example": "gobuster dir -u target -w list.txt -x php,html"},
+        {"flag": "-t", "description": "Threads", "example": "gobuster dir -u target -w list.txt -t 50"},
+        {"flag": "-o", "description": "Output file", "example": "gobuster dir -u target -w list.txt -o out.txt"}
+      ],
+      "examples": [
+        "gobuster dir -u http://192.168.1.10 -w /usr/share/wordlists/dirb/common.txt",
+        "gobuster dns -d example.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
+      ],
+      "safety_notes": "Only brute-force targets you have permission to test. Respect rate limits to avoid denial-of-service."
+    },
+    {
+      "name": "sqlmap",
+      "category": "pentest",
+      "description": "Sqlmap is an open-source penetration testing tool that automates detection and exploitation of SQL injection flaws.",
+      "install": "sudo apt install sqlmap",
+      "commands": [
+        {"task": "test url for sql injection", "command": "sqlmap -u 'http://<target>/page.php?id=1'", "description": "Basic GET parameter SQL injection test."},
+        {"task": "test with post data", "command": "sqlmap -u 'http://<target>/login' --data='username=admin&password=pass'", "description": "Test POST parameters."},
+        {"task": "list databases", "command": "sqlmap -u 'http://<target>/page.php?id=1' --dbs", "description": "Enumerate DBMS databases."},
+        {"task": "dump database", "command": "sqlmap -u 'http://<target>/page.php?id=1' -D dbname --dump", "description": "Dump all tables from a database."},
+        {"task": "get interactive shell", "command": "sqlmap -u 'http://<target>/page.php?id=1' --os-shell", "description": "Attempt to get an OS shell (invasive)."}
+      ],
+      "flags": [
+        {"flag": "-u", "description": "Target URL", "example": "sqlmap -u 'http://target/?id=1'"},
+        {"flag": "--data", "description": "POST data", "example": "sqlmap -u target --data='user=1'"},
+        {"flag": "--dbs", "description": "Enumerate databases", "example": "sqlmap -u target --dbs"},
+        {"flag": "-D", "description": "Database name", "example": "sqlmap -u target -D db --tables"},
+        {"flag": "--tables", "description": "List tables", "example": "sqlmap -u target --tables"},
+        {"flag": "--dump", "description": "Dump table contents", "example": "sqlmap -u target --dump"},
+        {"flag": "--batch", "description": "Non-interactive mode", "example": "sqlmap -u target --batch"},
+        {"flag": "--level", "description": "Test level (1-5)", "example": "sqlmap -u target --level 3"},
+        {"flag": "--risk", "description": "Risk level (1-3)", "example": "sqlmap -u target --risk 2"}
+      ],
+      "examples": [
+        "sqlmap -u 'http://testphp.vulnweb.com/artists.php?artist=1' --dbs",
+        "sqlmap -u 'http://target/search.php' --data='q=test' --dump"
+      ],
+      "safety_notes": "SQL injection testing can damage data. Only test applications you own or have written authorization to assess."
+    },
+    {
+      "name": "enum4linux",
+      "category": "pentest",
+      "description": "Enum4linux is a tool for enumerating information from Windows and Samba systems via SMB.",
+      "install": "sudo apt install enum4linux",
+      "commands": [
+        {"task": "full enumeration", "command": "enum4linux -a <target>", "description": "Run all simple enumeration checks."},
+        {"task": "enumerate users", "command": "enum4linux -U <target>", "description": "Enumerate users."},
+        {"task": "enumerate shares", "command": "enum4linux -S <target>", "description": "Enumerate SMB shares."},
+        {"task": "enumerate password policy", "command": "enum4linux -P <target>", "description": "Enumerate password policy."}
+      ],
+      "flags": [
+        {"flag": "-a", "description": "All simple enumeration", "example": "enum4linux -a target"},
+        {"flag": "-U", "description": "Users", "example": "enum4linux -U target"},
+        {"flag": "-S", "description": "Shares", "example": "enum4linux -S target"},
+        {"flag": "-P", "description": "Password policy", "example": "enum4linux -P target"},
+        {"flag": "-G", "description": "Groups", "example": "enum4linux -G target"},
+        {"flag": "-u", "description": "Username", "example": "enum4linux -u admin -p pass -a target"},
+        {"flag": "-p", "description": "Password", "example": "enum4linux -u admin -p pass target"}
+      ],
+      "examples": [
+        "enum4linux -a 192.168.1.10",
+        "enum4linux -U -S 192.168.1.10"
+      ],
+      "safety_notes": "Only enumerate systems you are authorized to test. SMB enumeration is logged by target systems."
+    },
+    {
+      "name": "aircrack-ng",
+      "category": "pentest",
+      "description": "Aircrack-ng is a suite of tools for auditing wireless networks: monitoring, attacking, testing, and cracking WEP/WPA keys.",
+      "install": "sudo apt install aircrack-ng",
+      "commands": [
+        {"task": "monitor nearby wifi", "command": "sudo airodump-ng wlan0mon", "description": "Scan for Wi-Fi networks in monitor mode."},
+        {"task": "capture handshake", "command": "sudo airodump-ng -c 6 --bssid <ap_mac> -w capture wlan0mon", "description": "Capture WPA handshake on channel 6."},
+        {"task": "crack wpa handshake", "command": "aircrack-ng -w /usr/share/wordlists/rockyou.txt -b <ap_mac> capture-01.cap", "description": "Crack a captured WPA handshake using a wordlist."},
+        {"task": "put interface in monitor mode", "command": "sudo airmon-ng start wlan0", "description": "Enable monitor mode on wlan0."}
+      ],
+      "flags": [
+        {"flag": "-w", "description": "Wordlist", "example": "aircrack-ng -w wordlist.txt capture.cap"},
+        {"flag": "-b", "description": "BSSID (AP MAC)", "example": "aircrack-ng -b AA:BB:CC:DD:EE:FF -w list.cap"},
+        {"flag": "-c", "description": "Channel", "example": "airodump-ng -c 11 wlan0mon"},
+        {"flag": "--bssid", "description": "Filter by AP MAC", "example": "airodump-ng --bssid MAC -w out wlan0mon"},
+        {"flag": "start/stop", "description": "Airmon-ng monitor mode", "example": "sudo airmon-ng start wlan0"}
+      ],
+      "examples": [
+        "sudo airodump-ng wlan0mon",
+        "aircrack-ng -b 00:11:22:33:44:55 -w rockyou.txt capture-01.cap"
+      ],
+      "safety_notes": "Wireless auditing is heavily regulated. Only test networks you own or have explicit written permission to audit."
+    },
+    {
+      "name": "searchsploit",
+      "category": "pentest",
+      "description": "SearchSploit is a command-line search tool for Exploit-DB, useful for finding public exploits for known vulnerabilities.",
+      "install": "sudo apt install exploitdb",
+      "commands": [
+        {"task": "search exploit", "command": "searchsploit <keyword>", "description": "Search Exploit-DB for a keyword."},
+        {"task": "search exact title", "command": "searchsploit -t <keyword>", "description": "Search only in exploit titles."},
+        {"task": "show exploit path", "command": "searchsploit -p <id>", "description": "Show full path to an exploit."},
+        {"task": "mirror exploit to current dir", "command": "searchsploit -m <id>", "description": "Copy exploit source to current directory."}
+      ],
+      "flags": [
+        {"flag": "-t", "description": "Search title only", "example": "searchsploit -t apache"},
+        {"flag": "-p", "description": "Show path", "example": "searchsploit -p 12345"},
+        {"flag": "-m", "description": "Mirror exploit", "example": "searchsploit -m 12345"},
+        {"flag": "-w", "description": "Show web link", "example": "searchsploit -w cve-2023-XXXX"},
+        {"flag": "-x", "description": "Examine exploit", "example": "searchsploit -x 12345"}
+      ],
+      "examples": [
+        "searchsploit vsftpd 2.3.4",
+        "searchsploit -t windows smb",
+        "searchsploit -m 45010"
+      ],
+      "safety_notes": "Exploit code may be dangerous. Only run it in isolated lab environments on systems you own."
+    },
+    {
+      "name": "ssh",
+      "category": "core",
+      "description": "SSH (Secure Shell) provides encrypted remote login and command execution over a network.",
+      "install": "usually pre-installed; sudo apt install openssh-client if missing",
+      "commands": [
+        {"task": "connect to remote server", "command": "ssh user@host", "description": "Log in to a remote host."},
+        {"task": "connect with port", "command": "ssh -p 2222 user@host", "description": "Connect on a non-standard port."},
+        {"task": "run remote command", "command": "ssh user@host 'ls -la /var/log'", "description": "Execute a command remotely without logging in."},
+        {"task": "ssh with key", "command": "ssh -i ~/.ssh/id_rsa user@host", "description": "Authenticate with a private key."},
+        {"task": "copy file with scp", "command": "scp file.txt user@host:/remote/path/", "description": "Copy file to remote host."}
+      ],
+      "flags": [
+        {"flag": "-p", "description": "Port", "example": "ssh -p 2222 user@host"},
+        {"flag": "-i", "description": "Identity file", "example": "ssh -i key user@host"},
+        {"flag": "-X", "description": "X11 forwarding", "example": "ssh -X user@host"},
+        {"flag": "-L", "description": "Local port forward", "example": "ssh -L 8080:internal:80 user@host"},
+        {"flag": "-N", "description": "No remote command", "example": "ssh -N -L 8080:internal:80 user@host"},
+        {"flag": "-v", "description": "Verbose", "example": "ssh -v user@host"}
+      ],
+      "examples": [
+        "ssh root@192.168.1.10",
+        "scp -r localdir/ user@host:/backup/",
+        "ssh -i ~/.ssh/lab_key user@10.0.0.5"
+      ],
+      "safety_notes": "Only connect to systems you are authorized to access. Protect private keys with strong passphrases."
+    },
+    {
+      "name": "curl",
+      "category": "core",
+      "description": "curl transfers data from or to a server using various protocols. It is commonly used for HTTP requests and API testing.",
+      "install": "usually pre-installed; sudo apt install curl if missing",
+      "commands": [
+        {"task": "download a webpage", "command": "curl http://<target>", "description": "Fetch and display a URL."},
+        {"task": "save download", "command": "curl -o file.html http://<target>", "description": "Save output to a file."},
+        {"task": "follow redirects", "command": "curl -L http://<target>", "description": "Follow HTTP redirects."},
+        {"task": "show headers", "command": "curl -I http://<target>", "description": "Show HTTP headers only."},
+        {"task": "send post request", "command": "curl -X POST -d 'key=value' http://<target>/api", "description": "Send a POST request with data."},
+        {"task": "set header", "command": "curl -H 'Authorization: Bearer token' http://<target>/api", "description": "Add a custom HTTP header."}
+      ],
+      "flags": [
+        {"flag": "-o", "description": "Output to file", "example": "curl -o out.html example.com"},
+        {"flag": "-O", "description": "Save with remote filename", "example": "curl -O http://example.com/file.zip"},
+        {"flag": "-L", "description": "Follow redirects", "example": "curl -L example.com"},
+        {"flag": "-I", "description": "Headers only", "example": "curl -I example.com"},
+        {"flag": "-X", "description": "HTTP method", "example": "curl -X DELETE example.com/api/item"},
+        {"flag": "-d", "description": "POST data", "example": "curl -d 'user=admin' example.com/login"},
+        {"flag": "-H", "description": "Header", "example": "curl -H 'Accept: application/json' example.com"},
+        {"flag": "-k", "description": "Ignore SSL errors", "example": "curl -k https://selfsigned.local"},
+        {"flag": "-v", "description": "Verbose", "example": "curl -v example.com"}
+      ],
+      "examples": [
+        "curl -I https://example.com",
+        "curl -X POST -d 'name=test' http://api.example.com/users",
+        "curl -L -o file.zip https://example.com/file.zip"
+      ],
+      "safety_notes": "curl can send data to any server. Be cautious with -k and sensitive headers."
+    },
+    {
+      "name": "tar",
+      "category": "core",
+      "description": "tar creates and extracts archive files (commonly .tar, .tar.gz, .tgz).",
+      "install": "usually pre-installed",
+      "commands": [
+        {"task": "create archive", "command": "tar -cvf archive.tar directory/", "description": "Create a tar archive."},
+        {"task": "create gzipped archive", "command": "tar -czvf archive.tar.gz directory/", "description": "Create a compressed tar.gz archive."},
+        {"task": "extract archive", "command": "tar -xvf archive.tar", "description": "Extract a tar archive."},
+        {"task": "extract gzipped archive", "command": "tar -xzvf archive.tar.gz", "description": "Extract a tar.gz archive."},
+        {"task": "list archive contents", "command": "tar -tvf archive.tar", "description": "List files inside archive."}
+      ],
+      "flags": [
+        {"flag": "-c", "description": "Create archive", "example": "tar -cvf out.tar dir/"},
+        {"flag": "-x", "description": "Extract archive", "example": "tar -xvf in.tar"},
+        {"flag": "-v", "description": "Verbose", "example": "tar -cvf out.tar dir/"},
+        {"flag": "-f", "description": "Archive filename", "example": "tar -f archive.tar"},
+        {"flag": "-z", "description": "Gzip compression", "example": "tar -czvf out.tar.gz dir/"},
+        {"flag": "-j", "description": "Bzip2 compression", "example": "tar -cjvf out.tar.bz2 dir/"},
+        {"flag": "-t", "description": "List contents", "example": "tar -tvf archive.tar"}
+      ],
+      "examples": [
+        "tar -czvf backup.tar.gz /home/user/project",
+        "tar -xzvf backup.tar.gz -C /restore/path",
+        "tar -tvf archive.tar | head"
+      ],
+      "safety_notes": "Be careful extracting archives as root; tar can overwrite system files if the archive contains absolute paths."
+    },
+    {
+      "name": "apt",
+      "category": "core",
+      "description": "apt is the Debian/Ubuntu package manager used to install, update, and remove software packages.",
+      "install": "pre-installed on Debian/Ubuntu",
+      "commands": [
+        {"task": "update package lists", "command": "sudo apt update", "description": "Refresh local package index."},
+        {"task": "upgrade installed packages", "command": "sudo apt upgrade", "description": "Upgrade installed packages."},
+        {"task": "install a package", "command": "sudo apt install <package>", "description": "Install one or more packages."},
+        {"task": "remove a package", "command": "sudo apt remove <package>", "description": "Remove a package but keep config."},
+        {"task": "search for a package", "command": "apt search <keyword>", "description": "Search package names and descriptions."}
+      ],
+      "flags": [
+        {"flag": "-y", "description": "Assume yes for prompts", "example": "sudo apt install -y nmap"},
+        {"flag": "--no-install-recommends", "description": "Do not install recommended packages", "example": "sudo apt install --no-install-recommends <package>"}
+      ],
+      "examples": ["sudo apt update && sudo apt upgrade -y", "sudo apt install nmap netdiscover", "apt search vulnerability-scanner"],
+      "safety_notes": "Use apt only on systems you administer. Upgrades may restart services."
+    },
+    {
+      "name": "systemctl",
+      "category": "core",
+      "description": "systemctl controls systemd services, targets, and the system state.",
+      "install": "pre-installed on systemd-based distros",
+      "commands": [
+        {"task": "list running services", "command": "systemctl list-units --type=service", "description": "Show active systemd service units."},
+        {"task": "start a service", "command": "sudo systemctl start <service>", "description": "Start a systemd service."},
+        {"task": "stop a service", "command": "sudo systemctl stop <service>", "description": "Stop a systemd service."},
+        {"task": "enable a service", "command": "sudo systemctl enable <service>", "description": "Start service at boot."},
+        {"task": "check service status", "command": "systemctl status <service>", "description": "Show service status and logs."}
+      ],
+      "flags": [
+        {"flag": "start", "description": "Start a unit", "example": "sudo systemctl start ssh"},
+        {"flag": "stop", "description": "Stop a unit", "example": "sudo systemctl stop ssh"},
+        {"flag": "enable", "description": "Enable at boot", "example": "sudo systemctl enable ssh"},
+        {"flag": "status", "description": "Show unit status", "example": "systemctl status ssh"}
+      ],
+      "examples": ["sudo systemctl restart networking", "systemctl status apache2", "sudo systemctl enable --now ssh"],
+      "safety_notes": "Stopping or disabling critical services may lock you out of remote systems."
+    },
+    {
+      "name": "kill",
+      "category": "core",
+      "description": "kill sends signals to processes, usually to terminate them.",
+      "install": "pre-installed",
+      "commands": [
+        {"task": "terminate a process by PID", "command": "kill <PID>", "description": "Send SIGTERM to a process."},
+        {"task": "force kill a process", "command": "kill -9 <PID>", "description": "Send SIGKILL forcefully."},
+        {"task": "kill by name", "command": "killall <process_name>", "description": "Kill all processes with matching name."},
+        {"task": "find and kill process", "command": "pkill <process_name>", "description": "Send signal to matching processes."}
+      ],
+      "flags": [
+        {"flag": "-9", "description": "SIGKILL force", "example": "kill -9 1234"},
+        {"flag": "-15", "description": "SIGTERM graceful", "example": "kill -15 1234"},
+        {"flag": "-l", "description": "List signal names", "example": "kill -l"}
+      ],
+      "examples": ["kill 1234", "kill -9 $(pgrep firefox)", "sudo killall -9 nginx"],
+      "safety_notes": "Killing system processes can crash the system or disconnect sessions."
+    },
+    {
+      "name": "sed",
+      "category": "core",
+      "description": "sed is a stream editor for filtering and transforming text.",
+      "install": "pre-installed",
+      "commands": [
+        {"task": "replace text in file", "command": "sed -i 's/old/new/g' file.txt", "description": "Replace all occurrences in-place."},
+        {"task": "delete lines matching pattern", "command": "sed '/pattern/d' file.txt", "description": "Remove lines containing pattern."},
+        {"task": "extract specific line", "command": "sed -n '10p' file.txt", "description": "Print line 10 only."}
+      ],
+      "flags": [
+        {"flag": "-i", "description": "Edit in place", "example": "sed -i 's/foo/bar/' file.txt"},
+        {"flag": "-n", "description": "Suppress printing", "example": "sed -n '5p' file.txt"},
+        {"flag": "-e", "description": "Add script expression", "example": "sed -e 's/a/b/' -e 's/c/d/' file.txt"}
+      ],
+      "examples": ["sed -i 's/localhost/127.0.0.1/g' config.conf", "sed '/^#/d' config.ini", "sed -n '1,10p' log.txt"],
+      "safety_notes": "sed -i modifies files directly; back up important files first."
+    },
+    {
+      "name": "awk",
+      "category": "core",
+      "description": "awk is a pattern scanning and text processing language for columnar data.",
+      "install": "pre-installed",
+      "commands": [
+        {"task": "print specific columns", "command": "awk '{print $1, $3}' file.txt", "description": "Print first and third columns."},
+        {"task": "sum a column", "command": "awk '{sum += $1} END {print sum}' file.txt", "description": "Sum values in first column."},
+        {"task": "filter by column value", "command": "awk '$3 == \"root\"' /etc/passwd", "description": "Rows where third column equals root."}
+      ],
+      "flags": [
+        {"flag": "-F", "description": "Set field separator", "example": "awk -F':' '{print $1}' /etc/passwd"},
+        {"flag": "-v", "description": "Assign variable", "example": "awk -v name=foo '{print name}'"}
+      ],
+      "examples": ["awk -F':' '{print $1}' /etc/passwd", "ps aux | awk '{print $2, $11}'", "awk '{print NR, $0}' file.txt"],
+      "safety_notes": "Read-only unless redirected to a file."
+    },
+    {
+      "name": "dig",
+      "category": "networking",
+      "description": "dig (Domain Information Groper) queries DNS servers for DNS records.",
+      "install": "sudo apt install dnsutils",
+      "commands": [
+        {"task": "lookup A record", "command": "dig example.com", "description": "Query A records for a domain."},
+        {"task": "lookup specific record type", "command": "dig example.com MX", "description": "Query MX records."},
+        {"task": "query specific DNS server", "command": "dig @8.8.8.8 example.com", "description": "Use a specific nameserver."},
+        {"task": "reverse DNS lookup", "command": "dig -x 8.8.8.8", "description": "Find domain for IP address."}
+      ],
+      "flags": [
+        {"flag": "+trace", "description": "Trace delegation path", "example": "dig +trace example.com"},
+        {"flag": "-x", "description": "Reverse lookup", "example": "dig -x 192.168.1.1"},
+        {"flag": "@", "description": "Specify nameserver", "example": "dig @1.1.1.1 example.com"},
+        {"flag": "+short", "description": "Short output", "example": "dig +short example.com"}
+      ],
+      "examples": ["dig +short google.com", "dig -x 8.8.8.8", "dig @1.1.1.1 example.com A"],
+      "safety_notes": "DNS queries are generally safe but can leak information on monitored networks."
+    },
+    {
+      "name": "wget",
+      "category": "networking",
+      "description": "wget is a command-line utility for downloading files from the web.",
+      "install": "sudo apt install wget",
+      "commands": [
+        {"task": "download a file", "command": "wget <URL>", "description": "Download file to current directory."},
+        {"task": "download to specific name", "command": "wget -O output.zip <URL>", "description": "Save with custom filename."},
+        {"task": "continue interrupted download", "command": "wget -c <URL>", "description": "Resume partial download."}
+      ],
+      "flags": [
+        {"flag": "-O", "description": "Output filename", "example": "wget -O file.zip <URL>"},
+        {"flag": "-r", "description": "Recursive download", "example": "wget -r -l 2 <URL>"},
+        {"flag": "-c", "description": "Continue partial", "example": "wget -c <URL>"},
+        {"flag": "--no-check-certificate", "description": "Skip SSL verification", "example": "wget --no-check-certificate <URL>"}
+      ],
+      "examples": ["wget https://example.com/file.tar.gz", "wget -O payload.py https://example.com/script.py", "wget -c https://example.com/large.iso"],
+      "safety_notes": "Only download from trusted sources. Skipping SSL checks is risky."
+    },
+    {
+      "name": "scp",
+      "category": "networking",
+      "description": "scp securely copies files between hosts over SSH.",
+      "install": "pre-installed (part of OpenSSH client)",
+      "commands": [
+        {"task": "copy local file to remote", "command": "scp file.txt user@host:/path/", "description": "Upload a file to a remote server."},
+        {"task": "copy remote file to local", "command": "scp user@host:/path/file.txt .", "description": "Download a file from a remote server."},
+        {"task": "copy directory recursively", "command": "scp -r dir/ user@host:/path/", "description": "Copy directory recursively."}
+      ],
+      "flags": [
+        {"flag": "-r", "description": "Recursive copy", "example": "scp -r folder/ user@host:/tmp/"},
+        {"flag": "-P", "description": "SSH port", "example": "scp -P 2222 file.txt user@host:/path/"},
+        {"flag": "-i", "description": "Identity file", "example": "scp -i key.pem file.txt user@host:/path/"}
+      ],
+      "examples": ["scp report.pdf user@192.168.1.10:/home/user/", "scp -r project/ user@remote:/var/www/", "scp -P 2222 data.zip user@host:/backup/"],
+      "safety_notes": "Ensure you have authorization to access the remote host."
+    },
+    {
+      "name": "rsync",
+      "category": "networking",
+      "description": "rsync is a fast file copying and synchronization tool supporting remote and local transfers.",
+      "install": "sudo apt install rsync",
+      "commands": [
+        {"task": "sync local directories", "command": "rsync -av /source/ /dest/", "description": "Synchronize source to destination."},
+        {"task": "sync to remote server", "command": "rsync -avz /local/ user@host:/remote/", "description": "Sync local files to remote over SSH."},
+        {"task": "dry run sync", "command": "rsync -avn /source/ /dest/", "description": "Show what would transfer without changes."}
+      ],
+      "flags": [
+        {"flag": "-a", "description": "Archive mode", "example": "rsync -a source/ dest/"},
+        {"flag": "-v", "description": "Verbose", "example": "rsync -av source/ dest/"},
+        {"flag": "-z", "description": "Compress", "example": "rsync -avz source/ dest/"},
+        {"flag": "-n", "description": "Dry run", "example": "rsync -avn source/ dest/"},
+        {"flag": "--delete", "description": "Delete files not in source", "example": "rsync -av --delete source/ dest/"}
+      ],
+      "examples": ["rsync -avz --delete /home/user/project/ user@server:/var/www/project/", "rsync -avn /data/ /backup/data/", "rsync -avz -e 'ssh -p 2222' /local/ user@host:/remote/"],
+      "safety_notes": "--delete can remove files on destination; use -n dry-run first."
+    },
+    {
+      "name": "tshark",
+      "category": "networking",
+      "description": "tshark is the command-line version of Wireshark for capturing and analyzing network traffic.",
+      "install": "sudo apt install tshark",
+      "commands": [
+        {"task": "capture on interface", "command": "sudo tshark -i eth0", "description": "Capture live packets on an interface."},
+        {"task": "capture to file", "command": "sudo tshark -i eth0 -w capture.pcap", "description": "Write captured packets to pcap."},
+        {"task": "read pcap file", "command": "tshark -r capture.pcap", "description": "Read packets from pcap."},
+        {"task": "display filter", "command": "tshark -r capture.pcap -Y 'http.request'", "description": "Apply display filter."}
+      ],
+      "flags": [
+        {"flag": "-i", "description": "Interface", "example": "sudo tshark -i wlan0"},
+        {"flag": "-w", "description": "Write to file", "example": "sudo tshark -w out.pcap"},
+        {"flag": "-r", "description": "Read file", "example": "tshark -r out.pcap"},
+        {"flag": "-Y", "description": "Display filter", "example": "tshark -Y 'dns'"}
+      ],
+      "examples": ["sudo tshark -i eth0 -f 'tcp port 443' -w https.pcap", "tshark -r capture.pcap -Y 'ip.src==192.168.1.5'", "sudo tshark -i any -c 100"],
+      "safety_notes": "Only capture traffic you are authorized to monitor. Captures can grow large."
+    },
+    {
+      "name": "metasploit",
+      "category": "pentest",
+      "description": "Metasploit Framework is a penetration testing platform for developing and executing exploit code.",
+      "install": "sudo apt install metasploit-framework",
+      "commands": [
+        {"task": "start metasploit console", "command": "msfconsole", "description": "Launch the interactive Metasploit console."},
+        {"task": "search exploit", "command": "msfconsole -q -x 'search ms17-010'", "description": "Search for exploits from CLI."},
+        {"task": "run exploit", "command": "msfconsole -q -x 'use exploit/...; set RHOSTS <ip>; run'", "description": "Execute exploit via CLI options."}
+      ],
+      "flags": [
+        {"flag": "-q", "description": "Quiet start", "example": "msfconsole -q"},
+        {"flag": "-x", "description": "Execute commands", "example": "msfconsole -x 'use exploit/...'"}
+      ],
+      "examples": ["msfconsole", "msfconsole -q -x 'search type:exploit platform:windows'", "msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=<ip> LPORT=4444 -f elf > payload.elf"],
+      "safety_notes": "Use Metasploit only on systems you own or have explicit written authorization to test."
+    },
+    {
+      "name": "john",
+      "category": "pentest",
+      "description": "John the Ripper is a password cracking tool supporting many hash formats.",
+      "install": "sudo apt install john",
+      "commands": [
+        {"task": "crack password hashes", "command": "john hashes.txt", "description": "Crack hashes with defaults."},
+        {"task": "crack with wordlist", "command": "john --wordlist=/usr/share/wordlists/rockyou.txt hashes.txt", "description": "Use specific wordlist."},
+        {"task": "show cracked passwords", "command": "john --show hashes.txt", "description": "Display cracked passwords."}
+      ],
+      "flags": [
+        {"flag": "--wordlist", "description": "Specify wordlist", "example": "john --wordlist=words.txt hashes.txt"},
+        {"flag": "--show", "description": "Show cracked", "example": "john --show hashes.txt"},
+        {"flag": "--format", "description": "Hash format", "example": "john --format=raw-md5 hashes.txt"}
+      ],
+      "examples": ["john --wordlist=rockyou.txt hash.txt", "john --show hash.txt", "john --format=sha512crypt shadow.txt"],
+      "safety_notes": "Only crack hashes you own or have authorization to crack."
+    },
+    {
+      "name": "hashcat",
+      "category": "pentest",
+      "description": "hashcat is a fast GPU-based password recovery utility.",
+      "install": "sudo apt install hashcat",
+      "commands": [
+        {"task": "crack with wordlist", "command": "hashcat -m 0 -a 0 hashes.txt wordlist.txt", "description": "Crack MD5 hashes with wordlist."},
+        {"task": "brute force", "command": "hashcat -m 0 -a 3 hashes.txt ?a?a?a?a?a?a", "description": "Brute-force all printable 6-char passwords."},
+        {"task": "show cracked", "command": "hashcat -m 0 hashes.txt --show", "description": "Show cracked hashes."}
+      ],
+      "flags": [
+        {"flag": "-m", "description": "Hash type", "example": "hashcat -m 1000 ntlm.txt wordlist.txt"},
+        {"flag": "-a", "description": "Attack mode", "example": "hashcat -a 3 -m 0 hashes.txt ?l?l?l?l"},
+        {"flag": "--show", "description": "Show cracked", "example": "hashcat -m 0 hashes.txt --show"}
+      ],
+      "examples": ["hashcat -m 0 -a 0 md5.txt rockyou.txt", "hashcat -m 1000 -a 0 ntlm.txt rockyou.txt", "hashcat -m 2500 -a 3 hccapx.txt ?d?d?d?d?d?d?d?d"],
+      "safety_notes": "Only crack hashes you own or have authorization to crack."
+    },
+    {
+      "name": "wpscan",
+      "category": "pentest",
+      "description": "WPScan is a WordPress security scanner for users, plugins, themes, and vulnerabilities.",
+      "install": "sudo apt install wpscan",
+      "commands": [
+        {"task": "scan WordPress site", "command": "wpscan --url <target>", "description": "Basic WordPress scan."},
+        {"task": "enumerate users", "command": "wpscan --url <target> --enumerate u", "description": "Enumerate user accounts."},
+        {"task": "brute force login", "command": "wpscan --url <target> -U users.txt -P passwords.txt", "description": "Brute-force WordPress logins."}
+      ],
+      "flags": [
+        {"flag": "--url", "description": "Target URL", "example": "wpscan --url https://example.com"},
+        {"flag": "--enumerate", "description": "Enumeration options", "example": "wpscan --url <target> --enumerate u,p,t"},
+        {"flag": "-U", "description": "User list", "example": "wpscan --url <target> -U users.txt"},
+        {"flag": "-P", "description": "Password list", "example": "wpscan --url <target> -P passwords.txt"}
+      ],
+      "examples": ["wpscan --url https://target.com --enumerate u,p", "wpscan --url https://target.com -U users.txt -P rockyou.txt", "wpscan --url https://target.com --api-token <token>"],
+      "safety_notes": "Only scan WordPress sites you own or have permission to test."
+    },
+    {
+      "name": "ffuf",
+      "category": "pentest",
+      "description": "ffuf (Fuzz Faster U Fool) is a fast web fuzzer for directories, files, parameters, and virtual hosts.",
+      "install": "sudo apt install ffuf",
+      "commands": [
+        {"task": "directory fuzzing", "command": "ffuf -u https://target.com/FUZZ -w /usr/share/wordlists/dirb/common.txt", "description": "Discover directories/files."},
+        {"task": "virtual host discovery", "command": "ffuf -u https://target.com -H 'Host: FUZZ.target.com' -w vhosts.txt", "description": "Enumerate virtual hosts."},
+        {"task": "parameter fuzzing", "command": "ffuf -u 'https://target.com/page.php?FUZZ=test' -w params.txt", "description": "Discover hidden parameters."}
+      ],
+      "flags": [
+        {"flag": "-u", "description": "Target URL", "example": "ffuf -u https://target.com/FUZZ -w wordlist.txt"},
+        {"flag": "-w", "description": "Wordlist", "example": "ffuf -u https://target.com/FUZZ -w dirs.txt"},
+        {"flag": "-H", "description": "Header", "example": "ffuf -H 'Authorization: Bearer token'"},
+        {"flag": "-mc", "description": "Match HTTP codes", "example": "ffuf -mc 200,301"},
+        {"flag": "-t", "description": "Threads", "example": "ffuf -t 50"}
+      ],
+      "examples": ["ffuf -u https://target.com/FUZZ -w /usr/share/seclists/Discovery/Web-Content/common.txt", "ffuf -u https://target.com -H 'Host: FUZZ.target.com' -w subdomains.txt -mc 200", "ffuf -X POST -u https://target.com/login.php -d 'user=FUZZ' -w users.txt"],
+      "safety_notes": "Web fuzzing can generate high traffic. Only target authorized systems."
+    },
+    {
+      "name": "dnsrecon",
+      "category": "pentest",
+      "description": "dnsrecon is a DNS enumeration and reconnaissance tool.",
+      "install": "sudo apt install dnsrecon",
+      "commands": [
+        {"task": "enumerate DNS records", "command": "dnsrecon -d example.com", "description": "Enumerate common DNS records."},
+        {"task": "perform zone transfer", "command": "dnsrecon -d example.com -a", "description": "Attempt zone transfer."},
+        {"task": "brute force subdomains", "command": "dnsrecon -d example.com -D subdomains.txt -t brt", "description": "Brute-force subdomains."}
+      ],
+      "flags": [
+        {"flag": "-d", "description": "Domain", "example": "dnsrecon -d example.com"},
+        {"flag": "-a", "description": "Zone transfer", "example": "dnsrecon -d example.com -a"},
+        {"flag": "-D", "description": "Wordlist", "example": "dnsrecon -d example.com -D subs.txt"},
+        {"flag": "-t", "description": "Scan type", "example": "dnsrecon -d example.com -t brt"}
+      ],
+      "examples": ["dnsrecon -d target.com", "dnsrecon -d target.com -D /usr/share/wordlists/dnsmap.txt -t brt", "dnsrecon -d target.com -a -z"],
+      "safety_notes": "Only enumerate domains you own or have permission to assess."
+    }
+  ]
+}

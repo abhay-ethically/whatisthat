@@ -1,0 +1,388 @@
+"""Intent detection and fuzzy tool matching."""
+import json
+import re
+from difflib import get_close_matches
+from pathlib import Path
+
+
+INTENT_KEYWORDS = {
+    "greet": ["hi", "hello", "hey", "hola", "greetings", "sup", "yo"],
+    "describe": [
+        "describe", "what is", "what's", "how does", "full description",
+        "explain tool", "about", "how it works", "tell me about",
+    ],
+    "command": [
+        "command", "commands", "how to", "i want", "give me", "show me",
+        "need", "check", "scan", "find", "get", "use", "run", "do",
+        "connected devices", "live hosts", "open ports", "port scan",
+        "discover", "enumerate", "brute", "download", "transfer",
+    ],
+    "options": [
+        "options", "flags", "arguments", "args", "settings", "parameters",
+        "switches", "what flag", "list flags", "all flags",
+    ],
+    "explain": [
+        "explain", "what does", "meaning", "mean", "break down",
+        "what is flag", "what is option", "what is -", "what does -",
+    ],
+    "list": [
+        "list tools", "show tools", "what tools", "available tools",
+        "all tools", "tools list", "which tools",
+    ],
+    "save": [
+        "save", "favorite", "bookmark", "keep", "store", "remember",
+    ],
+    "search": [
+        "search", "find command for", "lookup", "look up", "find tool",
+    ],
+    "execute": [
+        "run it", "execute", "run command", "launch", "start", "fire",
+    ],
+    "help": [
+        "help", "usage", "how do i use", "commands", "what can you do",
+    ],
+    "exit": [
+        "bye", "exit", "quit", "goodbye", "see you", "close",
+    ],
+}
+
+TOOL_ALIASES = {
+    "nc": "netcat",
+    "ifconfig": "ip",
+    "netstat": "ss",
+}
+
+
+class LinuxBot:
+    def __init__(self, kb_path=None, data_dir=None):
+        if kb_path is None:
+            base = Path(__file__).resolve().parent.parent
+            kb_path = base / "data" / "knowledge_base.json"
+        self.kb_path = Path(kb_path)
+        self.data_dir = data_dir or self.kb_path.parent
+        self.data_dir = Path(self.data_dir)
+        self.kb = self._load_kb()
+        self.tools = self.kb.get("tools", [])
+        self.tool_names = [t["name"].lower() for t in self.tools]
+        self.last_command = None
+        self.last_response = None
+        self.favorites = []
+        self._load_session()
+
+    def _load_kb(self):
+        with open(self.kb_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _load_session(self):
+        self.favorites_path = self.data_dir / "favorites.json"
+        if self.favorites_path.exists():
+            try:
+                with open(self.favorites_path, "r", encoding="utf-8") as f:
+                    self.favorites = json.load(f)
+            except Exception:
+                self.favorites = []
+        else:
+            self.favorites = []
+
+    def _save_session(self):
+        self.favorites_path = self.data_dir / "favorites.json"
+        with open(self.favorites_path, "w", encoding="utf-8") as f:
+            json.dump(self.favorites, f, indent=2)
+
+    def _normalize(self, text):
+        text = text.lower().strip()
+        text = re.sub(r"[^a-z0-9\s\-/]", " ", text)
+        return text
+
+    def _detect_intent(self, text):
+        norm = self._normalize(text)
+        scores = {}
+        for intent, keywords in INTENT_KEYWORDS.items():
+            score = 0
+            for kw in keywords:
+                if re.search(r"\b" + re.escape(kw) + r"\b", norm):
+                    score += len(kw)  # longer keywords are stronger signals
+            if score:
+                scores[intent] = score
+        if not scores:
+            return None
+        return max(scores, key=scores.get)
+
+    def _extract_tool(self, text):
+        norm = self._normalize(text)
+        # Direct alias handling
+        for alias, real in TOOL_ALIASES.items():
+            if re.search(r"\b" + re.escape(alias) + r"\b", norm):
+                return real
+        # Direct tool name match
+        for name in self.tool_names:
+            if re.search(r"\b" + re.escape(name) + r"\b", norm):
+                return name
+        # Fuzzy match
+        tokens = norm.split()
+        matches = get_close_matches(norm, self.tool_names, n=1, cutoff=0.6)
+        if matches:
+            return matches[0]
+        for token in tokens:
+            matches = get_close_matches(token, self.tool_names, n=1, cutoff=0.75)
+            if matches:
+                return matches[0]
+        return None
+
+    def _find_tool(self, name):
+        name = name.lower()
+        for tool in self.tools:
+            if tool["name"].lower() == name:
+                return tool
+        return None
+
+    def _find_command_by_task(self, query, top_n=1):
+        """Search command task/descriptions across all tools using fuzzy ratio."""
+        from difflib import SequenceMatcher
+        query_norm = self._normalize(query)
+        stop_words = {"a", "an", "the", "to", "for", "in", "on", "of", "and", "or", "is", "are", "with", "i", "want", "need", "me", "give", "show", "command", "commands", "how", "do", "does", "can", "you", "use", "using", "run", "my"}
+        query_words = [w for w in query_norm.split() if w not in stop_words]
+        matches = []
+        for tool in self.tools:
+            for cmd in tool.get("commands", []):
+                task = self._normalize(cmd.get("task", ""))
+                desc = self._normalize(cmd.get("description", ""))
+                # Fuzzy ratio between query and task string
+                ratio = SequenceMatcher(None, query_norm, task).ratio()
+                score = ratio * 80  # fuzzy similarity score
+                # Keyword overlap with meaningful words
+                task_words = set([w for w in task.split() if w not in stop_words])
+                desc_words = set([w for w in desc.split() if w not in stop_words])
+                query_set = set(query_words)
+                score += len(query_set & task_words) * 15
+                score += len(query_set & desc_words) * 5
+                # Direct phrase boosts
+                direct_phrases = {
+                    "connected device": ["live host", "discover"],
+                    "live host": ["discover", "network"],
+                    "open port": ["port", "scan"],
+                    "port scan": ["scan", "port"],
+                    "transfer file": ["transfer", "send", "receive"],
+                    "devices": ["host", "discover"],
+                }
+                for phrase, hints in direct_phrases.items():
+                    if phrase in query_norm:
+                        for hint in hints:
+                            if hint in task or hint in desc:
+                                score += 25
+                if score > 10:
+                    matches.append((score, tool, cmd))
+        matches.sort(key=lambda x: x[0], reverse=True)
+        return matches[:top_n]
+
+    def _best_command_match(self, tool, query):
+        query_norm = self._normalize(query)
+        best = None
+        best_score = 0
+        for cmd in tool.get("commands", []):
+            task = self._normalize(cmd.get("task", ""))
+            desc = self._normalize(cmd.get("description", ""))
+            score = 0
+            for word in query_norm.split():
+                if word in task:
+                    score += 3
+                if word in desc:
+                    score += 1
+            if score > best_score:
+                best_score = score
+                best = cmd
+        return best
+
+    def _explain_flags(self, text):
+        # Extract flags like -sS, --script, -p-, --open, etc.
+        flags = re.findall(r"(?:^|\s)(-[-a-zA-Z0-9]+)", text)
+        flags = [f.strip() for f in flags if f.strip()]
+        if not flags:
+            return None
+
+        results = []
+        for flag in flags:
+            found = False
+            for tool in self.tools:
+                for f in tool.get("flags", []):
+                    if f["flag"] == flag:
+                        results.append({
+                            "tool": tool["name"],
+                            "flag": f["flag"],
+                            "description": f["description"],
+                            "example": f.get("example", ""),
+                        })
+                        found = True
+                        break
+                if found:
+                    break
+            if not found:
+                results.append({"flag": flag, "description": "Unknown flag in local knowledge base."})
+        return results
+
+    def _search_kb(self, query):
+        query_norm = self._normalize(query)
+        words = set(query_norm.split())
+        results = []
+        for tool in self.tools:
+            score = 0
+            text = " ".join([
+                tool.get("name", ""),
+                tool.get("category", ""),
+                tool.get("description", ""),
+            ])
+            for cmd in tool.get("commands", []):
+                text += " " + cmd.get("task", "") + " " + cmd.get("description", "")
+            for flag in tool.get("flags", []):
+                text += " " + flag.get("flag", "") + " " + flag.get("description", "")
+            text = self._normalize(text)
+            for word in words:
+                if word in text:
+                    score += 1
+            if score > 0:
+                results.append((score, tool))
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [t for _, t in results[:5]]
+
+    def handle(self, user_input):
+        text = user_input.strip()
+        if not text:
+            return {"type": "empty", "text": "I didn't catch that. Type 'help' for what I can do."}
+
+        intent = self._detect_intent(text)
+        tool_name = self._extract_tool(text)
+
+        if intent == "greet":
+            return {
+                "type": "greet",
+                "text": (
+                    "Hello! I'm your offline Linux command helper. "
+                    "Ask me for commands, tool descriptions, flags, or type 'help'."
+                ),
+            }
+
+        if intent == "exit":
+            return {"type": "exit", "text": "Goodbye! Stay safe out there."}
+
+        if intent == "help" or (intent is None and not tool_name):
+            return {
+                "type": "help",
+                "text": (
+                    "You can ask me things like:\n"
+                    "  'nmap command to check ports'\n"
+                    "  'command to check connected devices in network'\n"
+                    "  'describe nmap'\n"
+                    "  'options for nmap'\n"
+                    "  'explain -sS -p-'\n"
+                    "  'list tools'\n"
+                    "  'search sql injection'\n"
+                    "  'save last' (saves the last command I showed)\n"
+                    "  'run it' (execute the last command, with confirmation)"
+                ),
+            }
+
+        if intent == "list":
+            return {
+                "type": "list",
+                "tools": self.tools,
+            }
+
+        if intent == "search":
+            query = text
+            for kw in ["search", "find command for", "lookup", "look up", "find tool"]:
+                query = re.sub(r"\b" + re.escape(kw) + r"\b", "", query)
+            return {
+                "type": "search",
+                "query": query.strip(),
+                "tools": self._search_kb(query.strip()),
+            }
+
+        if intent == "save":
+            if self.last_command:
+                entry = {
+                    "command": self.last_command,
+                    "context": self.last_response or "",
+                }
+                self.favorites.append(entry)
+                self._save_session()
+                return {"type": "save", "text": f"Saved command: {self.last_command}"}
+            return {"type": "save", "text": "There's no command to save yet. Ask me for a command first."}
+
+        if intent == "execute":
+            if self.last_command:
+                return {"type": "execute", "command": self.last_command}
+            return {"type": "execute", "text": "No command to run. Ask me for a command first."}
+
+        if intent == "explain":
+            flags = self._explain_flags(text)
+            if flags:
+                return {"type": "explain", "flags": flags}
+            # Maybe the user wants a tool description instead
+            if tool_name:
+                tool = self._find_tool(tool_name)
+                if tool:
+                    return {"type": "describe", "tool": tool}
+            return {
+                "type": "explain",
+                "text": "I couldn't find flags to explain. Try: 'explain -sS -p-' or 'describe nmap'.",
+            }
+
+        if intent == "options":
+            if not tool_name:
+                return {"type": "options", "text": "Which tool's options do you want? Try: 'options for nmap'."}
+            tool = self._find_tool(tool_name)
+            if tool:
+                return {"type": "options", "tool": tool}
+            return {"type": "options", "text": f"I don't know a tool named '{tool_name}'."}
+
+        if intent == "describe":
+            if not tool_name:
+                return {"type": "describe", "text": "Which tool do you want me to describe? Try: 'describe nmap'."}
+            tool = self._find_tool(tool_name)
+            if tool:
+                return {"type": "describe", "tool": tool}
+            return {"type": "describe", "text": f"I don't know a tool named '{tool_name}'."}
+
+        # Default intent is command/task lookup
+        if tool_name:
+            tool = self._find_tool(tool_name)
+            if tool:
+                cmd = self._best_command_match(tool, text)
+                if cmd:
+                    self.last_command = cmd["command"]
+                    self.last_response = f"{tool['name']}: {cmd['task']}"
+                    return {
+                        "type": "command",
+                        "tool": tool,
+                        "command": cmd,
+                    }
+                # If no good command match but tool mentioned, show description
+                return {"type": "describe", "tool": tool}
+
+        # Try to find a command by task description even when tool name isn't mentioned
+        cmd_matches = self._find_command_by_task(text, top_n=1)
+        if cmd_matches:
+            score, tool, cmd = cmd_matches[0]
+            self.last_command = cmd["command"]
+            self.last_response = f"{tool['name']}: {cmd['task']}"
+            return {
+                "type": "command",
+                "tool": tool,
+                "command": cmd,
+            }
+
+        # Fallback: search across all tools
+        results = self._search_kb(text)
+        if results:
+            return {"type": "search", "query": text, "tools": results}
+
+        return {
+            "type": "unknown",
+            "text": (
+                "I'm not sure I understood. Try asking for a command, description, "
+                "or flags. Type 'help' for examples."
+            ),
+        }
+
+    def get_favorites(self):
+        return self.favorites

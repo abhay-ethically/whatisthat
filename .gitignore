@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+data/favorites.json
+.DS_Store
