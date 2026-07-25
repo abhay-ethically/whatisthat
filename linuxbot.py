@@ -85,6 +85,25 @@ def print_search_response(response):
         print(f"    {tool.get('description', '')[:120]}...")
 
 
+def print_tldr_response(response):
+    tool = response["tool"]
+    say(f"{tool['name']} ({tool['category']})")
+    say(tool.get("description", "No description available."))
+    print()
+    if tool.get("examples"):
+        say("Common examples:")
+        for ex in tool["examples"]:
+            print(f"  {command(ex)}")
+    if tool.get("commands"):
+        say("Useful commands:")
+        for cmd in tool["commands"][:5]:
+            print(f"  {command(cmd['command'])}")
+            print(f"    # {cmd.get('description', '')}")
+    if tool.get("safety_notes"):
+        print()
+        print(say_msg(warning(tool["safety_notes"])))
+
+
 def print_explain_response(response):
     if "text" in response:
         say(response["text"])
@@ -227,6 +246,8 @@ def run_bot():
             print_list_response(response)
         elif rtype == "search":
             print_search_response(response)
+        elif rtype == "tldr":
+            print_tldr_response(response)
         elif rtype == "explain":
             print_explain_response(response)
         elif rtype == "save":

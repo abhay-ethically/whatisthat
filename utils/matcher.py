@@ -222,6 +222,15 @@ TASK_SYNONYMS = {
     "grab banner": "banner grabbing",
     "sub domain": "subdomain",
     "sub-domain": "subdomain",
+    "disk usage": "du",
+    "disk free": "df",
+    "free space": "df",
+    "free disk": "df",
+    "memory usage": "free",
+    "ram usage": "free",
+    "process list": "ps",
+    "list processes": "ps",
+    "running processes": "ps",
 }
 
 # Pronouns / context words that should reuse the last discussed tool
@@ -254,6 +263,10 @@ class LinuxBot:
         self.favorites = []
         self._load_session()
 
+        # Optional tldr-pages dataset (loaded lazily on first use)
+        self._tldr_kb = None
+        self._tldr_by_name = {}
+
     def _load_kb(self):
         with open(self.kb_path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -283,6 +296,53 @@ class LinuxBot:
             else:
                 self.tools.append(tool)
 
+    def _load_tldr_kb(self):
+        """Lazy-load the optional tldr-pages dataset."""
+        if self._tldr_kb is not None:
+            return self._tldr_kb
+        tldr_path = self.data_dir / "tldr_kb.json"
+        if not tldr_path.exists():
+            self._tldr_kb = []
+            return self._tldr_kb
+        with open(tldr_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self._tldr_kb = data.get("tools", [])
+        self._tldr_by_name = {t["name"].lower(): t for t in self._tldr_kb}
+        return self._tldr_kb
+
+    def _find_tldr_tool(self, name):
+        self._load_tldr_kb()
+        return self._tldr_by_name.get(name.lower())
+
+    def _search_tldr(self, query):
+        """Search tldr descriptions and examples for a query."""
+        self._load_tldr_kb()
+        query_norm = self._normalize_task_query(query)
+        # Keep short words that are actual tldr tool names (e.g. du, ps, df)
+        words = set()
+        for w in query_norm.split():
+            if w in self._tldr_by_name:
+                words.add(w)
+            elif w not in EXTRACTION_STOPWORDS and len(w) >= 2:
+                words.add(w)
+        results = []
+        for tool in self._tldr_kb:
+            text = tool.get("description", "") + " " + " ".join(tool.get("examples", []))
+            text_norm = self._normalize(text)
+            name = tool["name"].lower()
+            score = 0
+            for word in words:
+                if word == name:
+                    score += 35
+                elif word in name:
+                    score += 20
+                if word in text_norm:
+                    score += 5
+            if score > 0:
+                results.append((score, tool))
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [t for _, t in results[:5]]
+
     def _load_session(self):
         self.favorites_path = self.data_dir / "favorites.json"
         if self.favorites_path.exists():
@@ -305,11 +365,9 @@ class LinuxBot:
         text = re.sub(r"\s+", " ", text)
         return text
 
-    def _normalize_task_query(self, text):
-        """Normalize a user query for task/command matching."""
+    def _normalize_intent_query(self, text):
+        """Normalize a user query for intent detection. Preserves question words."""
         norm = self._normalize(text)
-
-        # Expand common contractions
         contractions = {
             "whats": "what is",
             "whatre": "what are",
@@ -330,8 +388,13 @@ class LinuxBot:
         }
         for bad, good in contractions.items():
             norm = re.sub(r"\b" + bad + r"\b", good, norm)
+        return re.sub(r"\s+", " ", norm).strip()
 
-        # Strip leading filler phrases
+    def _normalize_task_query(self, text):
+        """Normalize a user query for task/command matching."""
+        norm = self._normalize_intent_query(text)
+
+        # Strip common filler prefixes so matching focuses on the actual task
         for prefix in FILLER_PREFIXES:
             norm = re.sub(r"^\s*" + re.escape(prefix) + r"\b\s*", "", norm)
 
@@ -342,7 +405,7 @@ class LinuxBot:
         return re.sub(r"\s+", " ", norm).strip()
 
     def _detect_intent(self, text):
-        norm = self._normalize_task_query(text)
+        norm = self._normalize_intent_query(text)
 
         # Catch "list/show <category> tools" even when other words sit between them
         if re.search(r"\b(list|show)\b.*\btools?\b", norm) or \
@@ -488,12 +551,18 @@ class LinuxBot:
                     "subdomain": ["dnsrecon", "gobuster", "subdomain"],
                     "banner grab": ["netcat", "nc", "banner"],
                 }
+                has_direct_match = False
                 for phrase, hints in direct_phrases.items():
                     if phrase in query_norm:
                         for hint in hints:
                             if hint in task or hint in desc or hint in cmd.get("command", ""):
                                 score += 25
-                if score > 10:
+                                has_direct_match = True
+                # Require either a direct phrase, a shared word, or a very strong
+                # fuzzy ratio. This stops random ratio-only matches like
+                # "show me disk usage" -> curl "show headers".
+                has_word_match = bool(query_set & task_words) or bool(query_set & desc_words)
+                if score > 10 and (has_direct_match or has_word_match or ratio >= 0.7):
                     matches.append((score, tool, cmd))
         matches.sort(key=lambda x: x[0], reverse=True)
         matches = [m for m in matches if m[0] >= 25]
@@ -847,6 +916,11 @@ class LinuxBot:
                 if flags:
                     self._update_context(intent="explain")
                     return {"type": "explain", "flags": flags}
+                # Try the tldr dataset for common commands (e.g. "what is cat")
+                tldr_tool = self._extract_tldr_tool(text)
+                if tldr_tool:
+                    self._update_context(tool_name=tldr_tool["name"], intent="tldr")
+                    return {"type": "tldr", "tool": tldr_tool}
                 return self._smart_fallback(text)
             tool = self._find_tool(tool_name)
             if tool:
@@ -896,6 +970,13 @@ class LinuxBot:
                 self._update_context(tool_name=tool["name"], intent="all_commands")
                 return {"type": "all_commands", "tool": tool}
 
+        # Try an exact tldr-pages match before fuzzy task search. This gives
+        # clean answers for common commands like "tar", "sort", "cat", etc.
+        tldr_tool = self._extract_tldr_tool(text)
+        if tldr_tool:
+            self._update_context(tool_name=tldr_tool["name"], intent="tldr")
+            return {"type": "tldr", "tool": tldr_tool}
+
         # Try to find a command by task description even when tool name isn't mentioned
         cmd_matches = self._find_command_by_task(text, top_n=3)
         if cmd_matches:
@@ -912,8 +993,30 @@ class LinuxBot:
                 "command": cmd,
             }
 
-        # Smart fallback: search, then suggest help
+        # Fallback to the offline tldr-pages dataset for keyword searches
+        # e.g. "find large files", "copy preserving permissions"
+        tldr_results = self._search_tldr(text)
+        if tldr_results:
+            return {"type": "search", "query": text, "tools": tldr_results}
+
+        # Smart fallback: search main KB, then suggest help
         return self._smart_fallback(text)
+
+    def _extract_tldr_tool(self, text):
+        """Return a tldr entry if the query looks like a simple common-command request.
+
+        Only the first meaningful word is considered, so a query like
+        'transfer a file' does not accidentally match the `file` tool.
+        """
+        norm = self._normalize_intent_query(text)
+        words = [w for w in norm.split() if w not in EXTRACTION_STOPWORDS and len(w) > 1]
+        if not words:
+            return None
+        word = words[0]
+        entry = self._find_tldr_tool(word)
+        if entry and not self._find_tool(word):
+            return entry
+        return None
 
     def get_favorites(self):
         return self.favorites

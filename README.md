@@ -21,7 +21,8 @@ No internet, no API keys, no model downloads — just Python 3 and a local knowl
 - ✅ Zero external dependencies (Python standard library only)
 - ✅ Conversation context memory — ask about "this tool" or "it"
 - ✅ Covers Core Linux, Networking/Recon, and Pentest tools
-- ✅ 795+ tool entries, including the full Kali Linux tools list (`data/kali_tools.json`)
+- ✅ 795+ security tool entries from `knowledge_base.json` + `kali_tools.json`
+- ✅ 6,600+ general Linux command examples from the offline tldr-pages dataset (`data/tldr_kb.json`)
 - ✅ Suggests commands with descriptions and safety warnings
 - ✅ Explains flags and options
 - ✅ Shows examples, all commands, install steps, and step-by-step guides
@@ -152,13 +153,30 @@ WebCamm/
 │   ├── knowledge_base.json  # Core tool documentation
 │   ├── kali_tools.json      # Full Kali Linux package list
 │   ├── enrichments.json     # Curated commands/flags for popular Kali tools
+│   ├── tldr_kb.json         # Offline tldr-pages dataset (~6,600 commands)
 │   └── favorites.json       # Saved commands (created at runtime)
+├── scripts/
+│   └── build_datasets.py    # Re-download/refresh tldr-pages and other datasets
 └── utils/
     ├── matcher.py           # Intent detection and fuzzy matching
     ├── executor.py          # Safe command execution
     └── formatter.py         # Terminal colors
 ```
 
+## Updating the Offline Datasets
+
+The bundled `data/tldr_kb.json` was generated from [tldr-pages](https://github.com/tldr-pages/tldr) so LinuxBot works without internet. To refresh it later (requires a temporary internet connection):
+
+```bash
+cd WebCamm
+python3 scripts/build_datasets.py
+```
+
+This script also attempts to fetch the latest [GTFOBins](https://gtfobins.github.io/) dataset for privilege-escalation context.
+
 ## License
 
 This is a local helper tool. Use responsibly and ethically.
+
+Third-party data:
+- tldr-pages content is licensed under the [CC BY 4.0 License](https://github.com/tldr-pages/tldr/blob/main/LICENSE.md).
