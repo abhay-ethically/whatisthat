@@ -57,8 +57,18 @@ INTENT_KEYWORDS = {
     "search": [
         "search", "find command for", "lookup", "look up", "find tool",
     ],
+    "bundle": [
+        "everything", "full guide", "complete info", "all info", "full details",
+        "tell me everything", "all about", "give me everything", "full tutorial",
+        "show me everything", "complete guide",
+    ],
     "execute": [
         "run it", "execute", "run command", "launch", "start", "fire",
+    ],
+    "abuse": [
+        "gtfobins", "suid", "privilege escalation", "escalate privileges",
+        "binary abuse", "sudo abuse", "abuse", "bypass", "post exploitation",
+        "post-exploitation",
     ],
     "help": [
         "help", "usage", "how do i use", "commands", "what can you do",
@@ -233,6 +243,28 @@ TASK_SYNONYMS = {
     "process list": "ps",
     "list processes": "ps",
     "running processes": "ps",
+    "gimme": "give me",
+    "lemme": "let me",
+    "wanna": "want to",
+    "gonna": "going to",
+    "plz": "please",
+    "how to run": "how to use",
+    "learn": "teach me",
+    "crack wifi": "crack wifi",
+    "hack wifi": "crack wifi",
+    "wifi crack": "crack wifi",
+    "capture wifi": "capture wifi",
+    "dump wifi": "capture wifi",
+    "get shell": "reverse shell",
+    "spawn shell": "reverse shell",
+    "get a shell": "reverse shell",
+    "list hidden files": "list hidden files",
+    "hidden files": "list hidden files",
+    "show hidden files": "list hidden files",
+    "check service": "check service",
+    "start service": "start service",
+    "stop service": "stop service",
+    "restart service": "restart service",
 }
 
 # Pronouns / context words that should reuse the last discussed tool
@@ -265,9 +297,11 @@ class LinuxBot:
         self.favorites = []
         self._load_session()
 
-        # Optional tldr-pages dataset (loaded lazily on first use)
+        # Optional tldr-pages and GTFOBins datasets (loaded lazily on first use)
         self._tldr_kb = None
         self._tldr_by_name = {}
+        self._gtfo_kb = None
+        self._gtfo_by_name = {}
 
     def _load_kb(self):
         with open(self.kb_path, "r", encoding="utf-8") as f:
@@ -339,6 +373,48 @@ class LinuxBot:
                 elif word in name:
                     score += 20
                 if word in text_norm:
+                    score += 5
+            if score > 0:
+                results.append((score, tool))
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [t for _, t in results[:5]]
+
+    def _load_gtfobins_kb(self):
+        """Lazy-load the optional GTFOBins dataset."""
+        if self._gtfo_kb is not None:
+            return self._gtfo_kb
+        gtfo_path = self.data_dir / "gtfobins_kb.json"
+        if not gtfo_path.exists():
+            self._gtfo_kb = []
+            return self._gtfo_kb
+        with open(gtfo_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self._gtfo_kb = data.get("tools", [])
+        self._gtfo_by_name = {t["name"].lower(): t for t in self._gtfo_kb}
+        return self._gtfo_kb
+
+    def _search_gtfobins(self, query):
+        """Search GTFOBins function names and command text."""
+        self._load_gtfobins_kb()
+        query_norm = self._normalize_task_query(query)
+        words = set(
+            w for w in query_norm.split()
+            if w not in EXTRACTION_STOPWORDS and len(w) >= 3
+        )
+        results = []
+        for tool in self._gtfo_kb:
+            text = self._normalize(tool.get("description", ""))
+            for cmd in tool.get("commands", []):
+                text += " " + self._normalize(cmd.get("task", ""))
+                text += " " + self._normalize(cmd.get("command", ""))
+            score = 0
+            name = tool["name"].lower()
+            for word in words:
+                if word == name:
+                    score += 30
+                elif word in name:
+                    score += 15
+                if word in text:
                     score += 5
             if score > 0:
                 results.append((score, tool))
@@ -803,6 +879,105 @@ class LinuxBot:
             "explanations": explanations,
         }
 
+    def _extract_entities(self, text):
+        """Pull common command entities out of a natural-language request."""
+        entities = {}
+        # IP address / CIDR
+        ips = re.findall(
+            r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:/\d{1,2})?\b", text
+        )
+        if ips:
+            entities["target"] = ips[0]
+            entities["ip"] = ips[0]
+        # Domain (skip things that look like IPs or file paths)
+        if "target" not in entities:
+            domains = re.findall(
+                r"\b[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)+\.[a-z]{2,}\b",
+                text,
+                re.IGNORECASE,
+            )
+            domains = [d for d in domains if "." in d and not re.match(r"\d+\.\d+\.\d+\.\d+", d)]
+            if domains:
+                entities["target"] = domains[0]
+                entities["domain"] = domains[0]
+        # Port or range
+        port_match = re.search(
+            r"\b(?:port[s]?\s+)?(\d{1,5}(?:\s*-\s*\d{1,5})?)\b", text, re.IGNORECASE
+        )
+        if port_match:
+            entities["port"] = port_match.group(1).replace(" ", "")
+        # Network interface
+        iface_match = re.search(
+            r"\b(eth0|eth1|wlan0|wlan1|lo|tun0|tap0|ens\d+|enp\d+s\d+)\b", text, re.IGNORECASE
+        )
+        if iface_match:
+            entities["interface"] = iface_match.group(1)
+        # Wordlist file
+        wordlists = re.findall(r"\b\S+\.txt\b", text)
+        if wordlists:
+            entities["wordlist"] = wordlists[0]
+        # Output / capture file
+        outputs = re.findall(r"\b\S+\.(pcap|cap|log|txt|json|csv|tar|gz)\b", text)
+        if outputs:
+            entities["output"] = outputs[0]
+        # Protocol
+        if re.search(r"\bssh\b", text, re.IGNORECASE):
+            entities["protocol"] = "ssh"
+        elif re.search(r"\bftp\b", text, re.IGNORECASE):
+            entities["protocol"] = "ftp"
+        elif re.search(r"\bhttp(?:s)?\b", text, re.IGNORECASE):
+            entities["protocol"] = "http"
+        return entities
+
+    def _substitute_placeholders(self, command, entities):
+        """Replace placeholders in a command template with entities from the query."""
+        if not command:
+            return command
+        out = command
+        if "target" in entities:
+            out = re.sub(r"<target>|\{\{target\}\}|<ip>|\{\{ip\}\}", entities["target"], out, flags=re.IGNORECASE)
+        if "port" in entities:
+            out = re.sub(r"<port>|\{\{port\}\}", entities["port"], out, flags=re.IGNORECASE)
+        if "interface" in entities:
+            out = re.sub(r"<interface>|\{\{interface\}\}|<iface>|\{\{iface\}\}", entities["interface"], out, flags=re.IGNORECASE)
+        if "wordlist" in entities:
+            out = re.sub(r"<wordlist>|\{\{wordlist\}\}", entities["wordlist"], out, flags=re.IGNORECASE)
+        elif re.search(r"<wordlist>|\{\{wordlist\}\}", out, re.IGNORECASE):
+            out = re.sub(r"<wordlist>|\{\{wordlist\}\}", "/usr/share/wordlists/rockyou.txt", out, flags=re.IGNORECASE)
+        if "output" in entities:
+            out = re.sub(r"<output>|\{\{output\}\}|<file>|\{\{file\}\}", entities["output"], out, flags=re.IGNORECASE)
+        return out
+
+    def _build_tool_bundle(self, tool, query=None):
+        """Create a complete answer bundle for a tool."""
+        best = None
+        if query:
+            best = self._best_command_match(tool, query)
+        if not best and tool.get("commands"):
+            best = tool["commands"][0]
+
+        ready_command = None
+        explanation = None
+        if best:
+            entities = self._extract_entities(query or "")
+            ready_command = self._substitute_placeholders(best["command"], entities)
+            if ready_command != best["command"]:
+                explanation = "I substituted values from your request into the template."
+
+        bundle = {
+            "type": "bundle",
+            "tool": tool,
+            "command": best,
+            "ready_command": ready_command or (best["command"] if best else ""),
+            "explanation": explanation,
+            "examples": tool.get("examples", [])[:4],
+            "commands": tool.get("commands", [])[:5],
+            "flags": tool.get("flags", [])[:5],
+            "install": tool.get("install", ""),
+            "related": self._get_related_tools(tool, n=3),
+        }
+        return bundle
+
     def _get_related_tools(self, tool, n=3):
         """Suggest related tools based on category and command-task overlap."""
         if not tool:
@@ -1024,6 +1199,20 @@ class LinuxBot:
                 "tools": self._search_kb(query.strip()),
             }
 
+        if intent == "abuse":
+            # Strip only the generic request word; keep words like "suid" or
+            # "privilege escalation" because they help score GTFOBins entries.
+            query = re.sub(
+                r"(?:^|\s)gtfobins(?:\s|$)", " ", text, flags=re.IGNORECASE
+            ).strip()
+            results = self._search_gtfobins(query)
+            if not results:
+                return {
+                    "type": "unknown",
+                    "text": "I couldn't find a GTFOBins technique for that. Try 'gtfobins tar shell' or 'suid binary abuse'.",
+                }
+            return {"type": "search", "query": query or "GTFOBins", "tools": results}
+
         if intent == "save":
             if self.last_command:
                 entry = {
@@ -1126,15 +1315,34 @@ class LinuxBot:
                 return {"type": "describe", "tool": tool}
             return {"type": "describe", "text": f"I don't know a tool named '{tool_name}'."}
 
+        if intent == "bundle":
+            if not tool_name:
+                return {
+                    "type": "bundle",
+                    "text": "Which tool do you want a complete guide for? Try: 'tell me everything about nmap'.",
+                }
+            tool = self._find_tool(tool_name)
+            if tool:
+                self._update_context(tool_name=tool["name"], intent="bundle")
+                return self._build_tool_bundle(tool, query=text)
+            # Try tldr for common commands
+            tldr_tool = self._find_tldr_tool(tool_name)
+            if tldr_tool:
+                self._update_context(tool_name=tldr_tool["name"], intent="bundle")
+                return {"type": "tldr", "tool": tldr_tool}
+            return {"type": "bundle", "text": f"I don't know a tool named '{tool_name}'."}
+
         # Default intent is command/task lookup
         if tool_name:
             tool = self._find_tool(tool_name)
             if tool:
                 cmd = self._best_command_match(tool, text)
                 if cmd:
+                    entities = self._extract_entities(text)
+                    ready_command = self._substitute_placeholders(cmd["command"], entities)
                     self._update_context(
                         tool_name=tool["name"],
-                        command=cmd["command"],
+                        command=ready_command if ready_command else cmd["command"],
                         response=f"{tool['name']}: {cmd['task']}",
                         intent="command",
                     )
@@ -1142,6 +1350,7 @@ class LinuxBot:
                         "type": "command",
                         "tool": tool,
                         "command": cmd,
+                        "ready_command": ready_command,
                         "related": self._get_related_tools(tool, n=3),
                     }
                 # If the user started with the tool name, show all its commands
@@ -1157,9 +1366,11 @@ class LinuxBot:
                     cmd_matches = self._find_command_by_task(text, top_n=3)
                     if cmd_matches and cmd_matches[0][0] >= 30:
                         score, t, c = cmd_matches[0]
+                        entities = self._extract_entities(text)
+                        ready_command = self._substitute_placeholders(c["command"], entities)
                         self._update_context(
                             tool_name=t["name"],
-                            command=c["command"],
+                            command=ready_command if ready_command else c["command"],
                             response=f"{t['name']}: {c['task']}",
                             intent="command",
                         )
@@ -1167,6 +1378,7 @@ class LinuxBot:
                             "type": "command",
                             "tool": t,
                             "command": c,
+                            "ready_command": ready_command,
                             "related": self._get_related_tools(t, n=3),
                         }
 
@@ -1185,9 +1397,11 @@ class LinuxBot:
         cmd_matches = self._find_command_by_task(text, top_n=3)
         if cmd_matches:
             score, tool, cmd = cmd_matches[0]
+            entities = self._extract_entities(text)
+            ready_command = self._substitute_placeholders(cmd["command"], entities)
             self._update_context(
                 tool_name=tool["name"],
-                command=cmd["command"],
+                command=ready_command if ready_command else cmd["command"],
                 response=f"{tool['name']}: {cmd['task']}",
                 intent="command",
             )
@@ -1195,6 +1409,7 @@ class LinuxBot:
                 "type": "command",
                 "tool": tool,
                 "command": cmd,
+                "ready_command": ready_command,
                 "related": self._get_related_tools(tool, n=3),
             }
 
@@ -1203,6 +1418,12 @@ class LinuxBot:
         tldr_results = self._search_tldr(text)
         if tldr_results:
             return {"type": "search", "query": text, "tools": tldr_results}
+
+        # Fallback to the offline GTFOBins dataset for privilege-escalation
+        # and binary abuse context, e.g. "gtfobins tar shell".
+        gtfo_results = self._search_gtfobins(text)
+        if gtfo_results:
+            return {"type": "search", "query": text, "tools": gtfo_results}
 
         # Smart fallback: search main KB, then suggest help
         return self._smart_fallback(text)

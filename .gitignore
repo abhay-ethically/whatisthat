@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
 data/favorites.json
+data/man_kb.json
 .linuxbot_history
 .DS_Store

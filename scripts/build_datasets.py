@@ -105,51 +105,116 @@ def build_tldr():
     print(f"Wrote {len(entries)} tldr entries to {TLDR_OUT}")
 
 
+def _read_yaml_literal_block(lines, start_idx):
+    """Read a YAML literal block (| or |-) starting at lines[start_idx].
+
+    Returns (block_text, next_index).
+    """
+    if start_idx >= len(lines):
+        return "", start_idx
+    first_content = lines[start_idx]
+    if not first_content.strip():
+        return "", start_idx + 1
+    base_indent = len(first_content) - len(first_content.lstrip(" "))
+    content_lines = []
+    i = start_idx
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            content_lines.append("")
+            i += 1
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent < base_indent:
+            break
+        content_lines.append(line[base_indent:])
+        i += 1
+    return "\n".join(content_lines).rstrip(), i
+
+
 def parse_gtfo_page(path):
-    """Parse a GTFOBins markdown page into a tool entry."""
+    """Parse a GTFOBins Jekyll page into a tool entry."""
     text = path.read_text(encoding="utf-8")
-    # GTFOBins pages have front matter and headings per function
-    # We extract the binary name and command blocks under each function.
     name = path.stem.lower()
+
+    # GTFOBins files begin with an empty frontmatter (just `---`), so the body
+    # is everything after the first separator.
+    if text.startswith("---"):
+        body = text.split("---", 1)[1]
+    else:
+        body = text
+
     commands = []
     current_function = None
-    current_desc = None
+    current_entry = None
 
-    for line in text.splitlines():
-        if line.startswith("##"):
-            heading = line.lstrip("#").strip()
-            # Skip the title heading (usually the binary name)
-            if heading.lower() != name.lower():
-                current_function = heading
-                current_desc = heading
-        elif line.startswith("```"):
-            # skip the marker line
+    lines = body.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Function names are top-level keys under functions: at 2-space indent
+        if (
+            stripped.endswith(":")
+            and not stripped.startswith("-")
+            and not stripped.startswith("functions")
+            and line.startswith("  ")
+            and not line.startswith("   ")
+        ):
+            if current_entry and current_function:
+                commands.append(current_entry)
+                current_entry = None
+            current_function = stripped[:-1].strip()
+            i += 1
             continue
-        elif line.strip().startswith(">") or line.strip().startswith("^"):
-            # explanation / continuation of previous block
+
+        # New list item under a function
+        if stripped.startswith("- code:"):
+            if current_entry and current_function:
+                commands.append(current_entry)
+            current_entry = {"task": current_function, "description": "", "tags": []}
+            i += 1
+            current_entry["command"], i = _read_yaml_literal_block(lines, i)
             continue
-        elif line.strip() and line.strip()[0].isalnum() and current_function:
-            # this is likely a command line example
-            commands.append(
-                {
-                    "task": current_function,
-                    "command": line.strip(),
-                    "description": current_desc or "GTFOBins technique",
-                }
-            )
+
+        if stripped.startswith("comment:"):
+            i += 1
+            comment, i = _read_yaml_literal_block(lines, i)
+            if current_entry:
+                current_entry["description"] = comment
+            continue
+
+        # Skip contexts, version, sender, receiver, etc.
+        i += 1
+
+    if current_entry and current_function:
+        commands.append(current_entry)
 
     if not commands:
         return None
 
+    # Deduplicate identical commands
+    seen = set()
+    unique = []
+    for c in commands:
+        key = (c["task"], c["command"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+
     return {
         "name": name,
         "category": "gtfobins",
-        "description": f"Unix binary abuse techniques for {name} (privilege escalation, file reads, shells, etc.).",
-        "install": f"usually pre-installed; see GTFOBins for details",
-        "commands": commands[:8],
+        "description": (
+            f"GTFOBins abuse techniques for {name}: privilege escalation, "
+            "file reads/writes, shells, uploads/downloads, and more."
+        ),
+        "install": f"usually pre-installed; see https://gtfobins.github.io/gtfobins/{name}/",
+        "commands": unique[:12],
         "flags": [],
-        "examples": [c["command"] for c in commands[:8]],
-        "safety_notes": "GTFOBins techniques are used for privilege escalation and post-exploitation. Only use on systems you own or are authorized to test.",
+        "examples": [c["command"] for c in unique[:8]],
+        "safety_notes": "GTFOBins techniques are used for privilege escalation and post-exploitation. Only use on systems you own or are explicitly authorized to test.",
     }
 
 
@@ -172,11 +237,11 @@ def build_gtfobins():
             print(f"GTFOBins directory not found: {gtfobins_dir}")
             return
         for path in gtfobins_dir.iterdir():
-            if path.suffix != ".md":
-                continue
-            entry = parse_gtfo_page(path)
-            if entry:
-                entries.append(entry)
+            # GTFOBins binary pages have no extension
+            if path.is_file() and not path.suffix and not path.name.startswith("."):
+                entry = parse_gtfo_page(path)
+                if entry:
+                    entries.append(entry)
     entries.sort(key=lambda x: x["name"])
     GTFO_OUT.write_text(json.dumps({"tools": entries}, indent=2), encoding="utf-8")
     print(f"Wrote {len(entries)} GTFOBins entries to {GTFO_OUT}")

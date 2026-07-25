@@ -39,6 +39,10 @@ No internet, no API keys, no model downloads — just Python 3 and a local knowl
 - ✅ **Breaks down any command line** you paste in — explains each flag, argument, pipe, and operator
 - ✅ Suggests **related tools** for every command
 - ✅ **Tab-completion** for tool names and command history
+- ✅ **GTFOBins integration** — search Unix binary abuse / privilege-escalation techniques offline (`data/gtfobins_kb.json`)
+- ✅ **Natural-language command builder** — `scan all ports on 192.168.1.1 quickly` becomes `nmap 192.168.1.1`
+- ✅ **Complete answer bundles** — description, best command, examples, flags, install steps, related tools, and safety notes in one response
+- ✅ More synonyms and informal phrasing (`gimme`, `wanna`, `lemme`, `plz`, etc.)
 
 ## Quick Start
 
@@ -57,10 +61,11 @@ python3 linuxbot.py
 You: hi
 LinuxBot: Hello! I'm your offline Linux command helper. Ask me for commands, tool descriptions, flags, or type 'help'.
 
-You: nmap command to check ports
+You: scan all ports on 192.168.1.1 quickly
 LinuxBot: Tool: nmap (networking)
 LinuxBot: Task: scan common ports on a target
-LinuxBot: nmap <target>
+LinuxBot: nmap 192.168.1.1  ⚠️  CAUTION
+  Template: nmap <target>
 LinuxBot: Description: Default SYN scan of the top 1000 ports.
 ⚠️  Only scan networks and hosts you own or have explicit written permission to test.
 
@@ -70,12 +75,26 @@ LinuxBot: Task: discover live hosts on local network
 LinuxBot: sudo netdiscover -i eth0 -r 192.168.1.0/24
 LinuxBot: Description: Active ARP scan on the given interface and range.
 
+You: tell me everything about nmap
+LinuxBot: Complete guide for nmap (networking)
+  ...description, best command, examples, flags, install, related tools...
+
+You: explain nmap -sS -p- 192.168.1.1
+LinuxBot: Let me break down this command for you:
+  Flag -sS → Stealth SYN scan...
+  Arg  192.168.1.1 → An IP address...
+
+You: gtfobins tar shell
+LinuxBot: Top matches for 'tar shell':
+  tar (gtfobins)
+    GTFOBins abuse techniques for tar...
+
 You: save last
-LinuxBot: Saved command: nmap <target>
+LinuxBot: Saved command: nmap 192.168.1.1
 
 You: run it
 LinuxBot: About to execute:
-   $ nmap <target>
+   $ nmap 192.168.1.1
 ⚠️  Do you want to run this command? Type 'yes' to confirm, anything else to cancel.
 Confirm: no
 LinuxBot: Execution cancelled.
@@ -87,15 +106,19 @@ LinuxBot: Execution cancelled.
 |--------|---------|
 | Greeting | `hi`, `hello` |
 | Command for a task | `nmap command to check ports`, `command to transfer file` |
+| Natural-language command | `scan all ports on 192.168.1.1 quickly`, `brute force ssh on 10.0.0.5` |
+| Complete bundle | `tell me everything about nmap`, `full guide for hydra` |
 | Describe tool | `describe nmap`, `what is sqlmap`, `how does it work` |
 | List options | `options for nmap`, `flags for it` |
 | Explain flags | `explain -sS -p-`, `what does -l mean` |
+| Explain a command line | `explain nmap -sS -p- 192.168.1.1`, `break down this command: sudo apt update` |
 | Show examples | `show examples for nmap` |
 | All commands | `all commands for nmap` |
 | Install steps | `how to install nmap` |
 | Step-by-step guide | `guide me through nmap`, `how to use nmap` |
 | List tools | `list tools`, `list networking tools`, `show pentest tools` |
 | Search | `search sql injection`, `find command for wifi` |
+| GTFOBins / abuse | `gtfobins tar shell`, `suid binary abuse` |
 | Save command | `save last`, `favorite` |
 | Run last command | `run it`, `execute` |
 | Chat / small talk | `hi`, `how are you`, `what is your name`, `tell me a joke` |
@@ -157,9 +180,11 @@ WebCamm/
 │   ├── kali_tools.json      # Full Kali Linux package list
 │   ├── enrichments.json     # Curated commands/flags for popular Kali tools
 │   ├── tldr_kb.json         # Offline tldr-pages dataset (~6,600 commands)
+│   ├── gtfobins_kb.json     # Offline GTFOBins dataset (binary abuse / privesc)
 │   └── favorites.json       # Saved commands (created at runtime)
 ├── scripts/
-│   └── build_datasets.py    # Re-download/refresh tldr-pages and other datasets
+│   ├── build_datasets.py    # Re-download/refresh tldr-pages and GTFOBins datasets
+│   └── extract_man_examples.py  # Extract examples from local man pages (optional)
 └── utils/
     ├── matcher.py           # Intent detection and fuzzy matching
     ├── executor.py          # Safe command execution

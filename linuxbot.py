@@ -47,9 +47,14 @@ def _safety_badge(cmd_text, tool_name=""):
 def print_command_response(response):
     tool = response["tool"]
     cmd = response["command"]
+    ready = response.get("ready_command", cmd["command"])
     say(f"Tool: {tool['name']} ({tool['category']})")
     say(f"Task: {cmd['task']}")
-    print(f"{bot_name()}: {command(cmd['command'])}  {_safety_badge(cmd['command'], tool['name'])}")
+    if ready and ready != cmd["command"]:
+        print(f"{bot_name()}: {command(ready)}  {_safety_badge(ready, tool['name'])}")
+        print(f"  Template: {command(cmd['command'])}")
+    else:
+        print(f"{bot_name()}: {command(cmd['command'])}  {_safety_badge(cmd['command'], tool['name'])}")
     say(f"Description: {cmd['description']}")
     if tool.get("safety_notes"):
         say(warning(tool["safety_notes"]))
@@ -169,6 +174,59 @@ def print_command_explain_response(response):
     for ex in response["explanations"]:
         label = ex["type"].capitalize()
         print(f"  {label:9} {command(ex['value'])}  →  {ex['description']}")
+    if tool.get("safety_notes"):
+        print()
+        print(say_msg(warning(tool["safety_notes"])))
+
+
+def print_bundle_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
+    tool = response["tool"]
+    say(f"Complete guide for {tool['name']} ({tool.get('category', 'common')})")
+    desc = tool.get("description", "No description available.")
+    if desc:
+        print(f"  {desc[:300]}")
+        print()
+
+    best = response.get("command")
+    ready = response.get("ready_command")
+    if best:
+        say("Best command for your request:")
+        if ready and ready != best["command"]:
+            print(f"  {command(ready)}  {_safety_badge(ready, tool['name'])}")
+            print(f"    Template: {command(best['command'])}")
+        else:
+            print(f"  {command(best['command'])}  {_safety_badge(best['command'], tool['name'])}")
+        print(f"    Task: {best.get('task', '')}")
+        print(f"    {best.get('description', '')}")
+        if response.get("explanation"):
+            print(f"    Note: {response['explanation']}")
+        print()
+
+    if response.get("examples"):
+        say("More examples:")
+        for ex in response["examples"]:
+            print(f"  {command(ex)}  {_safety_badge(ex, tool['name'])}")
+        print()
+
+    if response.get("flags"):
+        say("Common flags:")
+        for flag in response["flags"]:
+            print(f"  {command(flag['flag'])}")
+            print(f"    {flag.get('description', '')}")
+        print()
+
+    if response.get("install"):
+        say("Install:")
+        print(f"  {command(response['install'])}")
+        print()
+
+    related = response.get("related", [])
+    if related:
+        print(f"  {info('Related tools:')} " + ", ".join(r["name"] for r in related))
+
     if tool.get("safety_notes"):
         print()
         print(say_msg(warning(tool["safety_notes"])))
@@ -327,6 +385,8 @@ def run_bot():
             print_explain_response(response)
         elif rtype == "command_explain":
             print_command_explain_response(response)
+        elif rtype == "bundle":
+            print_bundle_response(response)
         elif rtype == "save":
             say(response["text"])
         elif rtype == "execute":
