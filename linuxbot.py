@@ -126,6 +126,9 @@ def _clean_tldr_example(text):
 
 
 def print_tldr_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     say(f"{tool['name']} ({tool['category']})")
     desc = _clean_tldr_example(tool.get("description", "No description available."))
@@ -163,6 +166,9 @@ def print_explain_response(response):
 
 
 def print_command_explain_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     cmd = response["command"]
     say(f"Let me break down this command for you:")
@@ -233,6 +239,9 @@ def print_bundle_response(response):
 
 
 def print_examples_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     say(f"Example commands for {tool['name']}:")
     for ex in tool.get("examples", []):
@@ -245,6 +254,9 @@ def print_examples_response(response):
 
 
 def print_install_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     say(f"How to install {tool['name']}:")
     if tool.get("install"):
@@ -254,6 +266,9 @@ def print_install_response(response):
 
 
 def print_all_commands_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     say(f"All available commands/tasks for {tool['name']}:")
     for idx, cmd in enumerate(tool.get("commands", []), 1):
@@ -265,6 +280,9 @@ def print_all_commands_response(response):
 
 
 def print_guide_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     is_skeleton = tool.get("category") == "kali" and len(tool.get("commands", [])) <= 1
     say(f"Quick guide for {tool['name']}:")

@@ -1378,6 +1378,9 @@ class LinuxBot:
             if tool:
                 self._update_context(tool_name=tool["name"], intent="all_commands")
                 return {"type": "all_commands", "tool": tool}
+            search = self._smart_fallback(text)
+            if search["type"] != "unknown":
+                return search
             return {"type": "all_commands", "text": f"I don't know a tool named '{tool_name}'."}
 
         if intent == "guide":
@@ -1387,6 +1390,9 @@ class LinuxBot:
             if tool:
                 self._update_context(tool_name=tool["name"], intent="guide")
                 return {"type": "guide", "tool": tool}
+            search = self._smart_fallback(text)
+            if search["type"] != "unknown":
+                return search
             return {"type": "guide", "text": f"I don't know a tool named '{tool_name}'."}
 
         if intent == "describe":
@@ -1406,6 +1412,9 @@ class LinuxBot:
             if tool:
                 self._update_context(tool_name=tool["name"], intent="describe")
                 return {"type": "describe", "tool": tool}
+            search = self._smart_fallback(text)
+            if search["type"] != "unknown":
+                return search
             return {"type": "describe", "text": f"I don't know a tool named '{tool_name}'."}
 
         if intent == "bundle":
@@ -1423,6 +1432,9 @@ class LinuxBot:
             if tldr_tool:
                 self._update_context(tool_name=tldr_tool["name"], intent="bundle")
                 return {"type": "tldr", "tool": tldr_tool}
+            search = self._smart_fallback(text)
+            if search["type"] != "unknown":
+                return search
             return {"type": "bundle", "text": f"I don't know a tool named '{tool_name}'."}
 
         # Default intent is command/task lookup
