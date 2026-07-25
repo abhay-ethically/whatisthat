@@ -45,6 +45,9 @@ def _safety_badge(cmd_text, tool_name=""):
 
 
 def print_command_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     cmd = response["command"]
     ready = response.get("ready_command", cmd["command"])
@@ -65,6 +68,9 @@ def print_command_response(response):
 
 
 def print_options_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     say(f"Options/flags for {tool['name']}:")
     for flag in tool.get("flags", []):
@@ -76,6 +82,9 @@ def print_options_response(response):
 
 
 def print_describe_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tool = response["tool"]
     say(f"About {tool['name']}:")
     say(tool.get("description", "No description available."))
@@ -93,6 +102,9 @@ def print_describe_response(response):
 
 
 def print_list_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     tools = response["tools"]
     category = response.get("category")
     if category:
@@ -109,6 +121,9 @@ def print_list_response(response):
 
 
 def print_search_response(response):
+    if "text" in response:
+        say(response["text"])
+        return
     query = response["query"]
     tools = response["tools"]
     if not tools:
