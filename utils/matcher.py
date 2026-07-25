@@ -785,27 +785,31 @@ class LinuxBot:
 
     def _explain_command(self, text):
         """Break a full command line into plain-English pieces."""
-        command_part = self._strip_explain_prefix(text)
-        norm = self._normalize(command_part)
-        parts = norm.split()
-        has_sudo = False
-        if parts and parts[0] == "sudo":
-            has_sudo = True
-            parts = parts[1:]
-        if not parts:
+        command_part = self._strip_explain_prefix(text).strip()
+        if not command_part:
             return None
-        tool_name = parts[0]
+        # Use original-case tokens so IPs, flags, and file paths stay intact.
+        raw_tokens = re.findall(r"\S+", command_part)
+        has_sudo = False
+        if raw_tokens and raw_tokens[0].lower() == "sudo":
+            has_sudo = True
+            raw_tokens = raw_tokens[1:]
+        if not raw_tokens:
+            return None
+        tool_name = self._normalize(raw_tokens[0])
         tool = self._find_tool(tool_name) or self._find_tldr_tool(tool_name)
         if not tool:
             return None
 
-        # Build a flag lookup from the tool's documented flags
+        # Build a flag lookup from the tool's documented flags (case-insensitive)
         flag_map = {}
         for f in tool.get("flags", []):
-            flag_map[f["flag"]] = f
-            # Also index without leading dash(s)
-            bare = f["flag"].lstrip("-")
+            original = f["flag"]
+            flag_map[original] = f
+            flag_map[original.lower()] = f
+            bare = original.lstrip("-")
             flag_map[bare] = f
+            flag_map[bare.lower()] = f
 
         explanations = []
         if has_sudo:
@@ -814,13 +818,35 @@ class LinuxBot:
                 "value": "sudo",
                 "description": "Run the following command with superuser privileges.",
             })
-        for token in parts[1:]:
+        for token in raw_tokens[1:]:
             # Redirections / pipes / operators
             if token in ("|", "||", "&&", ";", ">>", ">", "<", "&"):
+                if token == "|":
+                    desc = "Pipe the output of the previous command into the next command."
+                elif token == "&&":
+                    desc = "Run the next command only if the previous one succeeds."
+                elif token == "||":
+                    desc = "Run the next command only if the previous one fails."
+                elif token == ";":
+                    desc = "Run the next command regardless of the previous exit status."
+                elif token in (">", ">>"):
+                    desc = f"Redirect stdout to a file ({'append' if token == '>>' else 'overwrite'})."
+                elif token == "<":
+                    desc = "Read input from a file."
+                elif token == "&":
+                    desc = "Run the previous command in the background."
+                else:
+                    desc = "Shell operator."
                 explanations.append({
                     "type": "operator",
                     "value": token,
-                    "description": "Shell operator.",
+                    "description": desc,
+                })
+            elif re.match(r"^\d*>&\d*$", token):
+                explanations.append({
+                    "type": "operator",
+                    "value": token,
+                    "description": "Redirect one file descriptor to another (e.g., stderr to stdout).",
                 })
             elif token == "sudo":
                 explanations.append({
@@ -829,19 +855,86 @@ class LinuxBot:
                     "description": "Run the following command with superuser privileges.",
                 })
             elif token.startswith("-"):
-                f = flag_map.get(token)
-                if f:
+                # Try the full token as a documented flag first (e.g., -sS, -p- in nmap)
+                if token in flag_map or token.lower() in flag_map:
+                    f = flag_map.get(token) or flag_map.get(token.lower())
                     explanations.append({
                         "type": "flag",
                         "value": token,
                         "description": f.get("description", "No description available."),
                     })
-                else:
+                # Common pattern: -X- means flag X with a '-' argument (e.g. nmap -p-)
+                elif len(token) == 3 and token[2] == "-" and ("-" + token[1]) in flag_map:
+                    f = flag_map["-" + token[1]]
+                    explanations.append({
+                        "type": "flag",
+                        "value": token[:2],
+                        "description": f.get("description", "No description available."),
+                    })
+                    explanations.append({
+                        "type": "arg",
+                        "value": "-",
+                        "description": "Special value for this flag (e.g., all ports, all items).",
+                    })
+                # Combined short flags like -czvf
+                elif len(token) > 2 and not token.startswith("--"):
+                    flag_parts = []
+                    unknown = []
+                    for ch in token[1:]:
+                        sub = "-" + ch
+                        f = flag_map.get(sub) or flag_map.get(sub.lower())
+                        if f:
+                            flag_parts.append(f"{sub}: {f.get('description', 'No description')}")
+                        else:
+                            unknown.append(sub)
+                    desc = "Combined short flags. "
+                    if flag_parts:
+                        desc += "; ".join(flag_parts)
+                    if unknown:
+                        desc += " Unknown: " + ", ".join(unknown)
                     explanations.append({
                         "type": "flag",
                         "value": token,
-                        "description": "Flag not documented in the local knowledge base.",
+                        "description": desc.strip(),
                     })
+                else:
+                    f = flag_map.get(token) or flag_map.get(token.lower())
+                    if f:
+                        explanations.append({
+                            "type": "flag",
+                            "value": token,
+                            "description": f.get("description", "No description available."),
+                        })
+                    else:
+                        explanations.append({
+                            "type": "flag",
+                            "value": token,
+                            "description": "Flag not documented in the local knowledge base.",
+                        })
+            elif re.match(r"^\$\(.+\)$", token):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "Command substitution — run the inner command and use its output.",
+                })
+            elif token in ("*", "?", "[", "]") or re.search(r"[*?\[\]]", token):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "Shell glob pattern — expands to matching files or paths.",
+                })
+            elif token == "~" or token.startswith("~/"):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "Home directory shortcut.",
+                })
+            elif re.match(r"^\d+\-\d+$", token):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "A numeric range (often ports, IDs, or lines).",
+                })
             elif re.match(r"^<.+>$", token):
                 explanations.append({
                     "type": "arg",
@@ -854,17 +947,17 @@ class LinuxBot:
                     "value": token,
                     "description": "An IP address or CIDR range (likely the target).",
                 })
+            elif "/" in token or token.endswith((".txt", ".json", ".csv", ".sh", ".py", ".cap", ".pcap", ".tar", ".gz", ".tgz", ".zip", ".bz2", ".xz")):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "A file path or filename.",
+                })
             elif re.match(r"^[\w.-]+\.[a-z]{2,}$", token):
                 explanations.append({
                     "type": "arg",
                     "value": token,
                     "description": "A domain name.",
-                })
-            elif "/" in token or token.endswith((".txt", ".json", ".csv", ".sh", ".py", ".cap", ".pcap", ".tar", ".gz")):
-                explanations.append({
-                    "type": "arg",
-                    "value": token,
-                    "description": "A file path or filename.",
                 })
             else:
                 explanations.append({
