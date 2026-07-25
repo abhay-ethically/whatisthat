@@ -36,6 +36,9 @@ No internet, no API keys, no model downloads — just Python 3 and a local knowl
 - ✅ Saves favorite commands locally
 - ✅ Can run suggested commands after explicit confirmation
 - ✅ Safety blocklist for dangerous command patterns
+- ✅ **Breaks down any command line** you paste in — explains each flag, argument, pipe, and operator
+- ✅ Suggests **related tools** for every command
+- ✅ **Tab-completion** for tool names and command history
 
 ## Quick Start
 

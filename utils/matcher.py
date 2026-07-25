@@ -44,6 +44,8 @@ INTENT_KEYWORDS = {
     "explain": [
         "explain", "what does", "meaning", "mean", "break down",
         "what is flag", "what is option", "what is -", "what does -",
+        "explain command", "what does this command do", "explain this command",
+        "break down this command", "what is this command", "what does this do",
     ],
     "list": [
         "list tools", "show tools", "what tools", "available tools",
@@ -648,6 +650,185 @@ class LinuxBot:
                 results.append({"flag": flag, "description": "Unknown flag in local knowledge base."})
         return results
 
+    def _strip_explain_prefix(self, text):
+        """Remove leading phrases like 'explain' or 'what does ... do' so we can
+        see the actual command the user wants explained."""
+        prefixes = [
+            "explain command", "explain this command:", "explain this command",
+            "break down this command:", "break down this command",
+            "what does this command do", "what does this do", "what is this command:",
+            "what is this command", "explain:", "explain", "what does", "what is",
+            "break down",
+        ]
+        lower = text.lower()
+        for prefix in prefixes:
+            if lower.startswith(prefix + " "):
+                return text[len(prefix) + 1 :].strip()
+            if lower.startswith(prefix):
+                remainder = text[len(prefix) :].strip()
+                # Drop a trailing " do" / " mean" left over from "what does X do"
+                if remainder.lower().endswith(" do"):
+                    remainder = remainder[:-3].strip()
+                if remainder.lower().endswith(" mean"):
+                    remainder = remainder[:-5].strip()
+                return remainder
+        return text
+
+    def _is_command_input(self, text):
+        """Detect if the user pasted an actual command line to be explained."""
+        command_part = self._strip_explain_prefix(text)
+        if not command_part:
+            return False
+        norm = self._normalize(command_part)
+        parts = norm.split()
+        if not parts:
+            return False
+        first = parts[0]
+        # Allow commands prefixed with sudo/doas/su
+        if first in ("sudo", "doas", "su") and len(parts) > 1:
+            first = parts[1]
+        if first not in self.tool_names:
+            self._load_tldr_kb()
+            if first not in self._tldr_by_name:
+                return False
+        # A single tool name like "cat" or "nmap" should be handled by describe/guide
+        if len(parts) == 1:
+            return False
+        # Strong command-line signals
+        if re.search(
+            r"[-<>=|&;]|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?\b|/\w+|\.(txt|json|csv|sh|py|cap|pcap|tar|gz|tgz|log|conf|md)\b",
+            norm,
+        ):
+            return True
+        # If the user explicitly asked to explain/break down a command, trust it.
+        explain_prefixes = ["explain", "what does", "what is", "break down"]
+        lower = text.lower()
+        if any(lower.startswith(p) or (" " + p + " ") in lower for p in explain_prefixes):
+            return True
+        return False
+
+    def _explain_command(self, text):
+        """Break a full command line into plain-English pieces."""
+        command_part = self._strip_explain_prefix(text)
+        norm = self._normalize(command_part)
+        parts = norm.split()
+        has_sudo = False
+        if parts and parts[0] == "sudo":
+            has_sudo = True
+            parts = parts[1:]
+        if not parts:
+            return None
+        tool_name = parts[0]
+        tool = self._find_tool(tool_name) or self._find_tldr_tool(tool_name)
+        if not tool:
+            return None
+
+        # Build a flag lookup from the tool's documented flags
+        flag_map = {}
+        for f in tool.get("flags", []):
+            flag_map[f["flag"]] = f
+            # Also index without leading dash(s)
+            bare = f["flag"].lstrip("-")
+            flag_map[bare] = f
+
+        explanations = []
+        if has_sudo:
+            explanations.append({
+                "type": "operator",
+                "value": "sudo",
+                "description": "Run the following command with superuser privileges.",
+            })
+        for token in parts[1:]:
+            # Redirections / pipes / operators
+            if token in ("|", "||", "&&", ";", ">>", ">", "<", "&"):
+                explanations.append({
+                    "type": "operator",
+                    "value": token,
+                    "description": "Shell operator.",
+                })
+            elif token == "sudo":
+                explanations.append({
+                    "type": "operator",
+                    "value": token,
+                    "description": "Run the following command with superuser privileges.",
+                })
+            elif token.startswith("-"):
+                f = flag_map.get(token)
+                if f:
+                    explanations.append({
+                        "type": "flag",
+                        "value": token,
+                        "description": f.get("description", "No description available."),
+                    })
+                else:
+                    explanations.append({
+                        "type": "flag",
+                        "value": token,
+                        "description": "Flag not documented in the local knowledge base.",
+                    })
+            elif re.match(r"^<.+>$", token):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "Placeholder — replace with a real value.",
+                })
+            elif re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$", token):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "An IP address or CIDR range (likely the target).",
+                })
+            elif re.match(r"^[\w.-]+\.[a-z]{2,}$", token):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "A domain name.",
+                })
+            elif "/" in token or token.endswith((".txt", ".json", ".csv", ".sh", ".py", ".cap", ".pcap", ".tar", ".gz")):
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "A file path or filename.",
+                })
+            else:
+                explanations.append({
+                    "type": "arg",
+                    "value": token,
+                    "description": "Command argument or value.",
+                })
+
+        return {
+            "tool": tool,
+            "command": text.strip(),
+            "explanations": explanations,
+        }
+
+    def _get_related_tools(self, tool, n=3):
+        """Suggest related tools based on category and command-task overlap."""
+        if not tool:
+            return []
+        category = tool.get("category", "")
+        name = tool["name"].lower()
+        candidates = []
+        # Same category, excluding the tool itself
+        for t in self.tools:
+            if t["name"].lower() == name:
+                continue
+            if t.get("category") == category:
+                candidates.append(t)
+        # Prefer tools with at least one command, so suggestions are useful
+        candidates = [t for t in candidates if t.get("commands")] + candidates
+        seen = set()
+        related = []
+        for t in candidates:
+            if t["name"].lower() in seen:
+                continue
+            seen.add(t["name"].lower())
+            related.append({"name": t["name"], "category": t.get("category", "")})
+            if len(related) >= n:
+                break
+        return related
+
     def _search_kb(self, query):
         query_norm = self._normalize_task_query(query)
         words = set([w for w in query_norm.split() if w not in EXTRACTION_STOPWORDS])
@@ -778,6 +959,14 @@ class LinuxBot:
         if self._uses_pronoun(text) and self.last_tool_name and not intent:
             intent = "describe"
 
+        # If the user pasted a command line, explain it instead of running it.
+        # We skip this when they explicitly asked to execute ("run it", "execute ...").
+        if intent != "execute" and self._is_command_input(text):
+            explanation = self._explain_command(text)
+            if explanation:
+                self._update_context(tool_name=explanation["tool"]["name"], intent="command_explain")
+                return {"type": "command_explain", **explanation}
+
         if intent == "exit":
             return {"type": "exit", "text": "Goodbye! Stay safe out there."}
 
@@ -802,6 +991,8 @@ class LinuxBot:
                     "  'how does nmap work'\n"
                     "  'options for nmap' or 'flags for nmap'\n"
                     "  'explain -sS -p-'\n"
+                    "  'explain nmap -sS -p- <target>' (break down a command)\n"
+                    "  'what does this command do: sudo apt update'\n"
                     "  'show examples for nmap'\n"
                     "  'all commands for nmap'\n"
                     "  'how to install nmap'\n"
@@ -811,7 +1002,8 @@ class LinuxBot:
                     "  'save last' (save the last command shown)\n"
                     "  'run it' (execute the last command with confirmation)\n"
                     "  'give me a random command'\n\n"
-                    "You can ask in normal English, e.g. 'how do I check open ports?' or 'what is Linux?'."
+                    "You can ask in normal English, e.g. 'how do I check open ports?' or 'what is Linux?'.\n"
+                    "Press TAB while typing to autocomplete tool names."
                 ),
             }
 
@@ -849,6 +1041,12 @@ class LinuxBot:
             return {"type": "execute", "text": "No command to run. Ask me for a command first."}
 
         if intent == "explain":
+            # If the user asked to explain a full command line, break it down.
+            if self._is_command_input(text):
+                explanation = self._explain_command(text)
+                if explanation:
+                    self._update_context(tool_name=explanation["tool"]["name"], intent="command_explain")
+                    return {"type": "command_explain", **explanation}
             flags = self._explain_flags(text)
             if flags:
                 self._update_context(intent="explain")
@@ -944,6 +1142,7 @@ class LinuxBot:
                         "type": "command",
                         "tool": tool,
                         "command": cmd,
+                        "related": self._get_related_tools(tool, n=3),
                     }
                 # If the user started with the tool name, show all its commands
                 # rather than guessing a different tool from the rest of the query.
@@ -964,7 +1163,12 @@ class LinuxBot:
                             response=f"{t['name']}: {c['task']}",
                             intent="command",
                         )
-                        return {"type": "command", "tool": t, "command": c}
+                        return {
+                            "type": "command",
+                            "tool": t,
+                            "command": c,
+                            "related": self._get_related_tools(t, n=3),
+                        }
 
                 # If no good command match but tool mentioned, show all commands
                 self._update_context(tool_name=tool["name"], intent="all_commands")
@@ -991,6 +1195,7 @@ class LinuxBot:
                 "type": "command",
                 "tool": tool,
                 "command": cmd,
+                "related": self._get_related_tools(tool, n=3),
             }
 
         # Fallback to the offline tldr-pages dataset for keyword searches

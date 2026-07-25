@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """LinuxBot - offline Linux command helper chatbot."""
+import atexit
+import readline
+import re
 import sys
 from pathlib import Path
 
@@ -17,15 +20,42 @@ from utils.formatter import (
 from utils.matcher import LinuxBot
 
 
+def _safety_badge(cmd_text, tool_name=""):
+    """Return a short safety label for a command string."""
+    text = (cmd_text or "").lower()
+    name = (tool_name or "").lower()
+    destructive = [
+        "rm -rf", "mkfs", "dd if", ":(){:", "fork bomb", "> /dev/sd",
+        "format ", "del /", "del \\", "wipefs", " shred", "mkfs.",
+        "iptables -f", "shutdown", "reboot", "poweroff", "halt",
+    ]
+    for pat in destructive:
+        if pat in text:
+            return danger("DANGEROUS")
+    risky = [
+        "sudo", "nmap", "masscan", "hydra", "aircrack", "sqlmap", "nikto",
+        "gobuster", "dirb", "ffuf", "enum4linux", "john", "hashcat",
+        "tcpdump", "wireshark", "tshark", "iptables", "responder",
+        "bettercap", "ettercap", "metasploit", "msfvenom", "mimikatz",
+        "impersonate", "psexec", "secretsdump", "pass-the-hash",
+    ]
+    if any(r in text for r in risky) or any(r in name for r in risky):
+        return warning("CAUTION")
+    return success("SAFE")
+
+
 def print_command_response(response):
     tool = response["tool"]
     cmd = response["command"]
     say(f"Tool: {tool['name']} ({tool['category']})")
     say(f"Task: {cmd['task']}")
-    print(f"{bot_name()}: {command(cmd['command'])}")
+    print(f"{bot_name()}: {command(cmd['command'])}  {_safety_badge(cmd['command'], tool['name'])}")
     say(f"Description: {cmd['description']}")
     if tool.get("safety_notes"):
         say(warning(tool["safety_notes"]))
+    related = response.get("related", [])
+    if related:
+        print(f"\n  {info('Related tools:')} " + ", ".join(r["name"] for r in related))
     print()
 
 
@@ -85,19 +115,25 @@ def print_search_response(response):
         print(f"    {tool.get('description', '')[:120]}...")
 
 
+def _clean_tldr_example(text):
+    """Convert tldr {{placeholders}} into simpler <placeholders>."""
+    return re.sub(r"\{\{(.+?)\}\}", r"<\1>", text)
+
+
 def print_tldr_response(response):
     tool = response["tool"]
     say(f"{tool['name']} ({tool['category']})")
-    say(tool.get("description", "No description available."))
+    desc = _clean_tldr_example(tool.get("description", "No description available."))
+    say(desc)
     print()
     if tool.get("examples"):
         say("Common examples:")
-        for ex in tool["examples"]:
-            print(f"  {command(ex)}")
+        for ex in tool["examples"][:8]:
+            print(f"  {command(_clean_tldr_example(ex))}  {_safety_badge(ex, tool['name'])}")
     if tool.get("commands"):
         say("Useful commands:")
         for cmd in tool["commands"][:5]:
-            print(f"  {command(cmd['command'])}")
+            print(f"  {command(_clean_tldr_example(cmd['command']))}  {_safety_badge(cmd['command'], tool['name'])}")
             print(f"    # {cmd.get('description', '')}")
     if tool.get("safety_notes"):
         print()
@@ -121,11 +157,28 @@ def print_explain_response(response):
         print()
 
 
+def print_command_explain_response(response):
+    tool = response["tool"]
+    cmd = response["command"]
+    say(f"Let me break down this command for you:")
+    print(f"  {command(cmd)}")
+    print(f"  Tool: {tool['name']} ({tool.get('category', 'common')})")
+    print(f"  {tool.get('description', '')[:160]}")
+    print()
+    say("Piece-by-piece:")
+    for ex in response["explanations"]:
+        label = ex["type"].capitalize()
+        print(f"  {label:9} {command(ex['value'])}  →  {ex['description']}")
+    if tool.get("safety_notes"):
+        print()
+        print(say_msg(warning(tool["safety_notes"])))
+
+
 def print_examples_response(response):
     tool = response["tool"]
     say(f"Example commands for {tool['name']}:")
     for ex in tool.get("examples", []):
-        print(f"  {command(ex)}")
+        print(f"  {command(ex)}  {_safety_badge(ex, tool['name'])}")
     if not tool.get("examples"):
         say("No examples available in the knowledge base.")
     if tool.get("safety_notes"):
@@ -147,7 +200,7 @@ def print_all_commands_response(response):
     say(f"All available commands/tasks for {tool['name']}:")
     for idx, cmd in enumerate(tool.get("commands", []), 1):
         print(f"\n  {idx}. {cmd['task']}")
-        print(f"     {command(cmd['command'])}")
+        print(f"     {command(cmd['command'])}  {_safety_badge(cmd['command'], tool['name'])}")
         print(f"     {cmd.get('description', '')}")
     if not tool.get("commands"):
         say("No commands documented for this tool yet.")
@@ -194,6 +247,28 @@ def run_bot():
         sys.exit(1)
 
     bot = LinuxBot(kb_path=kb_path, data_dir=data_dir)
+
+    # Tab completion and command history
+    bot._load_tldr_kb()
+    completer_names = sorted(set(bot.tool_names) | set(bot._tldr_by_name.keys()))
+
+    def make_completer(names):
+        def completer(text, state):
+            matches = [n for n in names if n.startswith(text)]
+            try:
+                return matches[state]
+            except IndexError:
+                return None
+        return completer
+
+    readline.set_completer(make_completer(completer_names))
+    readline.parse_and_bind("tab: complete")
+    history_file = base_dir / ".linuxbot_history"
+    try:
+        readline.read_history_file(str(history_file))
+    except (FileNotFoundError, OSError):
+        pass
+    atexit.register(readline.write_history_file, str(history_file))
 
     tool_count = len(bot.tools)
     print(header("LinuxBot - Offline Linux Command Helper"))
@@ -250,6 +325,8 @@ def run_bot():
             print_tldr_response(response)
         elif rtype == "explain":
             print_explain_response(response)
+        elif rtype == "command_explain":
+            print_command_explain_response(response)
         elif rtype == "save":
             say(response["text"])
         elif rtype == "execute":
