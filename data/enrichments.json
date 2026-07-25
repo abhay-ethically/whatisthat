@@ -1,0 +1,468 @@
+{
+  "tools": [
+    {
+      "name": "gobuster",
+      "category": "pentest",
+      "description": "Fast directory/file and DNS busting tool written in Go.",
+      "install": "sudo apt install gobuster",
+      "commands": [
+        {"task": "directory brute force", "command": "gobuster dir -u http://<target> -w /usr/share/wordlists/dirb/common.txt", "description": "Brute-force directories on a web server."},
+        {"task": "find files", "command": "gobuster dir -u http://<target> -w /usr/share/wordlists/dirb/common.txt -x php,txt,html,bak", "description": "Brute-force files with common extensions."},
+        {"task": "DNS subdomain brute force", "command": "gobuster dns -d <domain> -w /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt", "description": "Enumerate DNS subdomains."},
+        {"task": "vhost brute force", "command": "gobuster vhost -u http://<target> -w /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt", "description": "Brute-force virtual hosts."}
+      ],
+      "flags": [
+        {"flag": "-u", "description": "Target URL", "example": "-u http://10.0.0.1"},
+        {"flag": "-w", "description": "Wordlist path", "example": "-w /usr/share/wordlists/dirb/common.txt"},
+        {"flag": "-x", "description": "File extensions to search", "example": "-x php,txt"},
+        {"flag": "-t", "description": "Number of threads", "example": "-t 50"},
+        {"flag": "dir", "description": "Use directory/file enumeration mode"},
+        {"flag": "dns", "description": "Use DNS enumeration mode"},
+        {"flag": "vhost", "description": "Use VHOST enumeration mode"}
+      ],
+      "examples": [
+        "gobuster dir -u http://10.0.0.1 -w /usr/share/wordlists/dirb/common.txt",
+        "gobuster dns -d example.com -w /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt"
+      ],
+      "safety_notes": "Only run against targets you own or have explicit written authorization to test."
+    },
+    {
+      "name": "ffuf",
+      "category": "pentest",
+      "description": "Fast web fuzzer written in Go.",
+      "install": "sudo apt install ffuf",
+      "commands": [
+        {"task": "directory fuzzing", "command": "ffuf -u http://<target>/FUZZ -w /usr/share/wordlists/dirb/common.txt", "description": "Fuzz directories on a web server."},
+        {"task": "file extension fuzzing", "command": "ffuf -u http://<target>/indexFUZZ -w /usr/share/wordlists/dirb/extensions_common.txt -e .php,.txt,.bak", "description": "Discover backup or alternate file extensions."},
+        {"task": "virtual host discovery", "command": "ffuf -u http://<target> -H 'Host: FUZZ.<domain>' -w /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt", "description": "Discover virtual hosts."},
+        {"task": "post data fuzzing", "command": "ffuf -u http://<target>/login -X POST -d 'user=FUZZ&pass=FUZZ' -w /usr/share/wordlists/usernames.txt:FUZZ", "description": "Fuzz POST parameters."}
+      ],
+      "flags": [
+        {"flag": "-u", "description": "Target URL with FUZZ keyword", "example": "-u http://target/FUZZ"},
+        {"flag": "-w", "description": "Wordlist", "example": "-w /usr/share/wordlists/dirb/common.txt"},
+        {"flag": "-H", "description": "Custom header", "example": "-H 'Host: FUZZ.example.com'"},
+        {"flag": "-X", "description": "HTTP method", "example": "-X POST"},
+        {"flag": "-d", "description": "POST data", "example": "-d 'user=FUZZ'"},
+        {"flag": "-e", "description": "Append extensions", "example": "-e .php,.bak"},
+        {"flag": "-t", "description": "Threads", "example": "-t 50"},
+        {"flag": "-mc", "description": "Match HTTP status codes", "example": "-mc 200,301"}
+      ],
+      "examples": [
+        "ffuf -u http://10.0.0.1/FUZZ -w /usr/share/wordlists/dirb/common.txt",
+        "ffuf -u http://10.0.0.1/FUZZ -w /usr/share/wordlists/dirb/common.txt -e .php,.bak -mc 200"
+      ],
+      "safety_notes": "Only fuzz targets you own or have explicit authorization to test."
+    },
+    {
+      "name": "nikto",
+      "category": "pentest",
+      "description": "Open-source web server scanner that detects vulnerabilities and misconfigurations.",
+      "install": "sudo apt install nikto",
+      "commands": [
+        {"task": "basic web scan", "command": "nikto -h http://<target>", "description": "Run a basic scan against a web server."},
+        {"task": "scan with SSL", "command": "nikto -h https://<target> -ssl", "description": "Scan an HTTPS target."},
+        {"task": "scan specific port", "command": "nikto -h <target> -p 8080", "description": "Scan a specific port."},
+        {"task": "output to file", "command": "nikto -h http://<target> -o nikto_results.txt", "description": "Save scan output to a file."}
+      ],
+      "flags": [
+        {"flag": "-h", "description": "Target host", "example": "-h 10.0.0.1"},
+        {"flag": "-p", "description": "Port", "example": "-p 8080"},
+        {"flag": "-ssl", "description": "Force SSL mode"},
+        {"flag": "-o", "description": "Output file", "example": "-o report.txt"},
+        {"flag": "-Format", "description": "Output format (txt, html, csv)", "example": "-Format html"}
+      ],
+      "examples": [
+        "nikto -h http://10.0.0.1",
+        "nikto -h https://example.com -ssl -o nikto_report.html"
+      ],
+      "safety_notes": "Only scan servers you own or have written authorization to test."
+    },
+    {
+      "name": "sqlmap",
+      "category": "pentest",
+      "description": "Automatic SQL injection and database takeover tool.",
+      "install": "sudo apt install sqlmap",
+      "commands": [
+        {"task": "basic GET injection test", "command": "sqlmap -u 'http://<target>/page.php?id=1'", "description": "Test a GET parameter for SQL injection."},
+        {"task": "test POST parameter", "command": "sqlmap -u 'http://<target>/login' --data='user=admin&pass=test'", "description": "Test a POST form for SQL injection."},
+        {"task": "dump database", "command": "sqlmap -u 'http://<target>/page.php?id=1' --dbs", "description": "List databases."},
+        {"task": "dump tables", "command": "sqlmap -u 'http://<target>/page.php?id=1' -D <db_name> --tables", "description": "List tables in a database."},
+        {"task": "dump data", "command": "sqlmap -u 'http://<target>/page.php?id=1' -D <db_name> -T <table> --dump", "description": "Dump data from a specific table."}
+      ],
+      "flags": [
+        {"flag": "-u", "description": "Target URL", "example": "-u 'http://target/page.php?id=1'"},
+        {"flag": "--data", "description": "POST data", "example": "--data='user=admin'"},
+        {"flag": "--dbs", "description": "List databases"},
+        {"flag": "-D", "description": "Database name", "example": "-D mydb"},
+        {"flag": "--tables", "description": "List tables"},
+        {"flag": "-T", "description": "Table name", "example": "-T users"},
+        {"flag": "--dump", "description": "Dump table contents"},
+        {"flag": "--batch", "description": "Run with default answers"}
+      ],
+      "examples": [
+        "sqlmap -u 'http://10.0.0.1/news.php?id=1' --batch",
+        "sqlmap -u 'http://10.0.0.1/login' --data='user=admin&pass=admin' --dbs"
+      ],
+      "safety_notes": "SQL injection attacks are illegal without explicit written authorization. Use only on systems you own or are permitted to test."
+    },
+    {
+      "name": "enum4linux",
+      "category": "pentest",
+      "description": "Tool for enumerating information from Windows/Samba systems.",
+      "install": "sudo apt install enum4linux",
+      "commands": [
+        {"task": "full enumeration", "command": "enum4linux -a <target>", "description": "Run all enumeration options."},
+        {"task": "enumerate users", "command": "enum4linux -U <target>", "description": "Enumerate users."},
+        {"task": "enumerate shares", "command": "enum4linux -S <target>", "description": "Enumerate shares."},
+        {"task": "enumerate passwords policy", "command": "enum4linux -P <target>", "description": "Enumerate password policy."}
+      ],
+      "flags": [
+        {"flag": "-a", "description": "Do all simple enumeration"},
+        {"flag": "-U", "description": "Enumerate users"},
+        {"flag": "-S", "description": "Enumerate shares"},
+        {"flag": "-P", "description": "Enumerate password policy"},
+        {"flag": "-u", "description": "Username", "example": "-u admin"},
+        {"flag": "-p", "description": "Password", "example": "-p password123"}
+      ],
+      "examples": [
+        "enum4linux -a 10.0.0.5",
+        "enum4linux -U -S 10.0.0.5"
+      ],
+      "safety_notes": "Only enumerate targets you own or have authorization to test."
+    },
+    {
+      "name": "hashcat",
+      "category": "pentest",
+      "description": "World's fastest password recovery tool supporting many hash types.",
+      "install": "sudo apt install hashcat",
+      "commands": [
+        {"task": "crack MD5 hash", "command": "hashcat -m 0 -a 0 hashes.txt /usr/share/wordlists/rockyou.txt", "description": "Crack MD5 hashes with a wordlist."},
+        {"task": "crack NTLM hash", "command": "hashcat -m 1000 -a 0 ntlm.txt /usr/share/wordlists/rockyou.txt", "description": "Crack Windows NTLM hashes."},
+        {"task": "crack WPA handshake", "command": "hashcat -m 22000 capture.hccx /usr/share/wordlists/rockyou.txt", "description": "Crack a WPA/WPA2 handshake."},
+        {"task": "mask attack", "command": "hashcat -m 0 -a 3 hashes.txt '?l?l?l?l?l?l'", "description": "Brute-force lowercase 6-letter passwords."}
+      ],
+      "flags": [
+        {"flag": "-m", "description": "Hash type", "example": "-m 0"},
+        {"flag": "-a", "description": "Attack mode (0=straight, 3=mask)", "example": "-a 0"},
+        {"flag": "-o", "description": "Output file", "example": "-o cracked.txt"}
+      ],
+      "examples": [
+        "hashcat -m 1000 ntlm.txt /usr/share/wordlists/rockyou.txt -o cracked.txt",
+        "hashcat -m 22000 handshake.hccx /usr/share/wordlists/rockyou.txt"
+      ],
+      "safety_notes": "Only crack hashes you own or have legal authorization to crack."
+    },
+    {
+      "name": "wpscan",
+      "category": "pentest",
+      "description": "WordPress vulnerability scanner.",
+      "install": "sudo apt install wpscan",
+      "commands": [
+        {"task": "basic WordPress scan", "command": "wpscan --url http://<target>", "description": "Scan a WordPress site for vulnerabilities."},
+        {"task": "enumerate users", "command": "wpscan --url http://<target> --enumerate u", "description": "Enumerate WordPress users."},
+        {"task": "enumerate plugins", "command": "wpscan --url http://<target> --enumerate p", "description": "Enumerate vulnerable plugins."},
+        {"task": "brute force login", "command": "wpscan --url http://<target> --passwords /usr/share/wordlists/rockyou.txt --usernames admin", "description": "Brute-force WordPress login."}
+      ],
+      "flags": [
+        {"flag": "--url", "description": "Target URL", "example": "--url http://target"},
+        {"flag": "--enumerate", "description": "Enumerate component (u, p, t)", "example": "--enumerate u"},
+        {"flag": "--usernames", "description": "Username list", "example": "--usernames users.txt"},
+        {"flag": "--passwords", "description": "Password wordlist", "example": "--passwords rockyou.txt"}
+      ],
+      "examples": [
+        "wpscan --url http://10.0.0.1/wordpress",
+        "wpscan --url http://10.0.0.1/wordpress --enumerate u,p --plugins-detection aggressive"
+      ],
+      "safety_notes": "Only scan WordPress sites you own or have written permission to test."
+    },
+    {
+      "name": "dnsrecon",
+      "category": "pentest",
+      "description": "DNS enumeration and reconnaissance tool.",
+      "install": "sudo apt install dnsrecon",
+      "commands": [
+        {"task": "basic DNS enumeration", "command": "dnsrecon -d <domain>", "description": "Enumerate DNS records for a domain."},
+        {"task": "subdomain brute force", "command": "dnsrecon -d <domain> -D /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt -t brt", "description": "Brute-force subdomains."},
+        {"task": "reverse lookup", "command": "dnsrecon -r <ip_range>", "description": "Perform reverse DNS lookups."},
+        {"task": "zone transfer test", "command": "dnsrecon -d <domain> -t axfr", "description": "Test for DNS zone transfer."}
+      ],
+      "flags": [
+        {"flag": "-d", "description": "Domain", "example": "-d example.com"},
+        {"flag": "-D", "description": "Subdomain wordlist", "example": "-D subdomains.txt"},
+        {"flag": "-t", "description": "Enumeration type", "example": "-t brt"},
+        {"flag": "-r", "description": "IP range", "example": "-r 10.0.0.0/24"}
+      ],
+      "examples": [
+        "dnsrecon -d example.com",
+        "dnsrecon -d example.com -D /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt -t brt"
+      ],
+      "safety_notes": "Only enumerate domains you own or have authorization to test."
+    },
+    {
+      "name": "searchsploit",
+      "category": "pentest",
+      "description": "Command-line search utility for the Exploit-DB database.",
+      "install": "sudo apt install exploitdb",
+      "commands": [
+        {"task": "search exploit", "command": "searchsploit <keyword>", "description": "Search for public exploits."},
+        {"task": "search exact title", "command": "searchsploit -t <keyword>", "description": "Search exploit titles only."},
+        {"task": "mirror exploit", "command": "searchsploit -m <exploit_path>", "description": "Copy an exploit to current directory."},
+        {"task": "update database", "command": "searchsploit -u", "description": "Update the local Exploit-DB copy."}
+      ],
+      "flags": [
+        {"flag": "-t", "description": "Search title only"},
+        {"flag": "-m", "description": "Mirror exploit file"},
+        {"flag": "-u", "description": "Update database"},
+        {"flag": "-w", "description": "Show exploit URL"}
+      ],
+      "examples": [
+        "searchsploit apache 2.4",
+        "searchsploit -m linux/local/45010.c"
+      ],
+      "safety_notes": "Only use exploits against systems you own or are authorized to test."
+    },
+    {
+      "name": "theHarvester",
+      "category": "pentest",
+      "description": "Email and subdomain gathering tool for early reconnaissance.",
+      "install": "sudo apt install theharvester",
+      "commands": [
+        {"task": "collect emails and hosts", "command": "theHarvester -d <domain> -b all", "description": "Gather emails and hosts from all sources."},
+        {"task": "search specific source", "command": "theHarvester -d <domain> -b google", "description": "Search a specific source like Google."},
+        {"task": "limit results", "command": "theHarvester -d <domain> -b all -l 500", "description": "Limit number of results."}
+      ],
+      "flags": [
+        {"flag": "-d", "description": "Target domain", "example": "-d example.com"},
+        {"flag": "-b", "description": "Data source", "example": "-b all"},
+        {"flag": "-l", "description": "Limit results", "example": "-l 500"}
+      ],
+      "examples": [
+        "theHarvester -d example.com -b all",
+        "theHarvester -d example.com -b google -l 200"
+      ],
+      "safety_notes": "Only gather OSINT on domains you own or have authorization to investigate."
+    },
+    {
+      "name": "responder",
+      "category": "pentest",
+      "description": "LLMNR, NBT-NS and MDNS poisoner with built-in authentication server.",
+      "install": "sudo apt install responder",
+      "commands": [
+        {"task": "start responder on interface", "command": "sudo responder -I eth0", "description": "Start responder on a network interface."},
+        {"task": "start with HTTP server off", "command": "sudo responder -I eth0 -wrfv", "description": "Run responder without WPAD and force vulnerable options."},
+        {"task": "analyze mode", "command": "sudo responder -I eth0 -A", "description": "Analyze mode (no poisoning)."}
+      ],
+      "flags": [
+        {"flag": "-I", "description": "Network interface", "example": "-I eth0"},
+        {"flag": "-A", "description": "Analyze mode"},
+        {"flag": "-wrfv", "description": "Disable WPAD and force vulnerable options"}
+      ],
+      "examples": [
+        "sudo responder -I eth0",
+        "sudo responder -I eth0 -A"
+      ],
+      "safety_notes": "Responder is highly intrusive. Only use on networks you own or are explicitly authorized to test."
+    },
+    {
+      "name": "bloodhound",
+      "category": "pentest",
+      "description": "Active Directory privilege escalation analysis tool.",
+      "install": "sudo apt install bloodhound",
+      "commands": [
+        {"task": "start neo4j", "command": "sudo neo4j console", "description": "Start the BloodHound Neo4j database."},
+        {"task": "run bloodhound gui", "command": "bloodhound", "description": "Launch the BloodHound GUI."},
+        {"task": "sharphound collection", "command": "Invoke-BloodHound -CollectionMethod All -Domain <domain> -ZipFileName loot.zip", "description": "Collect Active Directory data with SharpHound."}
+      ],
+      "flags": [
+        {"flag": "-CollectionMethod", "description": "Data collection method", "example": "-CollectionMethod All"},
+        {"flag": "-ZipFileName", "description": "Output zip file", "example": "-ZipFileName loot.zip"}
+      ],
+      "examples": [
+        "sudo neo4j console",
+        "bloodhound"
+      ],
+      "safety_notes": "Only collect AD data on domains you own or are authorized to assess."
+    },
+    {
+      "name": "impacket",
+      "category": "pentest",
+      "description": "Collection of Python classes for working with network protocols, commonly used in Active Directory attacks.",
+      "install": "sudo apt install impacket-scripts",
+      "commands": [
+        {"task": "get users with GetADUsers", "command": "GetADUsers.py -dc-ip <ip> -all <domain>/<user>:<pass>", "description": "List Active Directory users."},
+        {"task": "dump SAM hashes", "command": "secretsdump.py <domain>/<user>:<pass>@<target>", "description": "Dump SAM/LSA secrets remotely."},
+        {"task": "pass-the-hash psexec", "command": "psexec.py -hashes <lmhash>:<nthash> <domain>/<user>@<target>", "description": "Execute commands via pass-the-hash."},
+        {"task": "smbclient list shares", "command": "smbclient.py <domain>/<user>:<pass>@<target>", "description": "List SMB shares."}
+      ],
+      "flags": [
+        {"flag": "-dc-ip", "description": "Domain controller IP", "example": "-dc-ip 10.0.0.5"},
+        {"flag": "-hashes", "description": "NTLM hashes", "example": "-hashes aad3b435b51404eeaad3b435b51404ee:..."}
+      ],
+      "examples": [
+        "secretsdump.py WORKGROUP/admin:password123@10.0.0.5",
+        "psexec.py -hashes aad3b435b51404eeaad3b435b51404ee:<ntlmhash> WORKGROUP/admin@10.0.0.5"
+      ],
+      "safety_notes": "Only use against systems you own or have explicit written authorization to test."
+    },
+    {
+      "name": "mimikatz",
+      "category": "pentest",
+      "description": "Post-exploitation tool for extracting credentials from Windows memory.",
+      "install": "sudo apt install mimikatz",
+      "commands": [
+        {"task": "dump credentials", "command": "mimikatz # sekurlsa::logonpasswords", "description": "Dump logged-on credentials."},
+        {"task": "dump SAM database", "command": "mimikatz # lsadump::sam", "description": "Dump local SAM hashes."},
+        {"task": "pass-the-hash", "command": "mimikatz # sekurlsa::pth /user:<user> /domain:<domain> /ntlm:<hash>", "description": "Perform pass-the-hash."}
+      ],
+      "flags": [
+        {"flag": "sekurlsa::logonpasswords", "description": "Dump passwords from LSASS"},
+        {"flag": "lsadump::sam", "description": "Dump local SAM"},
+        {"flag": "sekurlsa::pth", "description": "Pass-the-hash"}
+      ],
+      "examples": [
+        "mimikatz # sekurlsa::logonpasswords",
+        "mimikatz # sekurlsa::pth /user:admin /domain:WORKGROUP /ntlm:<hash>"
+      ],
+      "safety_notes": "Mimikatz extracts credentials. Only use on systems you own or are authorized to assess."
+    },
+    {
+      "name": "bettercap",
+      "category": "pentest",
+      "description": "Powerful, modular, portable MITM framework.",
+      "install": "sudo apt install bettercap",
+      "commands": [
+        {"task": "start bettercap", "command": "sudo bettercap -iface eth0", "description": "Start bettercap on an interface."},
+        {"task": "ARP scan network", "command": "sudo bettercap -iface eth0 -eval 'set arp.spoof.targets <target>; arp.spoof on'", "description": "Perform ARP spoofing against a target."},
+        {"task": "sniff passwords", "command": "sudo bettercap -iface eth0 -eval 'set net.sniff.filter port 80; net.sniff on'", "description": "Sniff cleartext traffic."}
+      ],
+      "flags": [
+        {"flag": "-iface", "description": "Network interface", "example": "-iface eth0"},
+        {"flag": "-eval", "description": "Run commands on start", "example": "-eval 'net.probe on'"}
+      ],
+      "examples": [
+        "sudo bettercap -iface eth0",
+        "sudo bettercap -iface eth0 -eval 'net.probe on; net.show'"
+      ],
+      "safety_notes": "Only perform MITM attacks on networks you own or are explicitly authorized to test."
+    },
+    {
+      "name": "recon-ng",
+      "category": "pentest",
+      "description": "Full-featured web reconnaissance framework written in Python.",
+      "install": "sudo apt install recon-ng",
+      "commands": [
+        {"task": "start recon-ng", "command": "recon-ng", "description": "Launch the recon-ng console."},
+        {"task": "add workspace", "command": "workspaces create <name>", "description": "Create a workspace."},
+        {"task": "use module", "command": "modules load recon/domains-hosts/brute_hosts", "description": "Load a recon module."},
+        {"task": "run module", "command": "run", "description": "Run the loaded module."}
+      ],
+      "flags": [],
+      "examples": [
+        "recon-ng",
+        "modules load recon/domains-hosts/brute_hosts"
+      ],
+      "safety_notes": "Only perform reconnaissance on targets you own or have authorization to investigate."
+    },
+    {
+      "name": "onesixtyone",
+      "category": "pentest",
+      "description": "Fast SNMP scanner that uses a community string list.",
+      "install": "sudo apt install onesixtyone",
+      "commands": [
+        {"task": "scan SNMP community strings", "command": "onesixtyone -c /usr/share/wordlists/snmp/community.txt <target>", "description": "Brute-force SNMP community strings."},
+        {"task": "scan multiple hosts", "command": "onesixtyone -c /usr/share/wordlists/snmp/community.txt -i hosts.txt", "description": "Scan multiple hosts from a file."}
+      ],
+      "flags": [
+        {"flag": "-c", "description": "Community string file", "example": "-c community.txt"},
+        {"flag": "-i", "description": "Input hosts file", "example": "-i hosts.txt"}
+      ],
+      "examples": [
+        "onesixtyone -c /usr/share/wordlists/snmp/community.txt 10.0.0.1",
+        "onesixtyone -c community.txt -i hosts.txt"
+      ],
+      "safety_notes": "Only scan devices you own or are authorized to test."
+    },
+    {
+      "name": "snmpwalk",
+      "category": "pentest",
+      "description": "SNMP data harvester that walks the MIB tree using GETNEXT requests.",
+      "install": "sudo apt install snmp",
+      "commands": [
+        {"task": "walk SNMP with community", "command": "snmpwalk -c public -v1 <target>", "description": "Walk SNMP tree using public community."},
+        {"task": "walk specific OID", "command": "snmpwalk -c public -v1 <target> 1.3.6.1.2.1.1", "description": "Walk a specific OID."},
+        {"task": "walk with v2c", "command": "snmpwalk -c public -v2c <target>", "description": "Use SNMP v2c."}
+      ],
+      "flags": [
+        {"flag": "-c", "description": "Community string", "example": "-c public"},
+        {"flag": "-v", "description": "SNMP version", "example": "-v1"},
+        {"flag": "-u", "description": "SNMPv3 username", "example": "-u user"}
+      ],
+      "examples": [
+        "snmpwalk -c public -v1 10.0.0.1",
+        "snmpwalk -c public -v2c 10.0.0.1 1.3.6.1.2.1.1"
+      ],
+      "safety_notes": "Only query SNMP on devices you own or are authorized to test."
+    },
+    {
+      "name": "dnsenum",
+      "category": "pentest",
+      "description": "Perl script for DNS enumeration that supports zone transfers, brute-forcing, and Google scraping.",
+      "install": "sudo apt install dnsenum",
+      "commands": [
+        {"task": "enumerate domain", "command": "dnsenum <domain>", "description": "Enumerate DNS records and subdomains."},
+        {"task": "brute force subdomains", "command": "dnsenum -f /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt <domain>", "description": "Brute-force subdomains with a wordlist."}
+      ],
+      "flags": [
+        {"flag": "-f", "description": "Subdomain wordlist", "example": "-f subdomains.txt"},
+        {"flag": "--enum", "description": "Enumeration options", "example": "--enum d,s,t"}
+      ],
+      "examples": [
+        "dnsenum example.com",
+        "dnsenum -f /usr/share/wordlists/dnsrecon/subdomains-top1mil.txt example.com"
+      ],
+      "safety_notes": "Only enumerate domains you own or have authorization to test."
+    },
+    {
+      "name": "dirb",
+      "category": "pentest",
+      "description": "Web content scanner that brute-forces directories and files.",
+      "install": "sudo apt install dirb",
+      "commands": [
+        {"task": "directory brute force", "command": "dirb http://<target> /usr/share/wordlists/dirb/common.txt", "description": "Brute-force web directories."},
+        {"task": "recursive scan", "command": "dirb http://<target> /usr/share/wordlists/dirb/common.txt -r", "description": "Non-recursive scan."},
+        {"task": "scan extensions", "command": "dirb http://<target> /usr/share/wordlists/dirb/common.txt -X .php,.txt", "description": "Look for specific extensions."}
+      ],
+      "flags": [
+        {"flag": "-r", "description": "Don't be recursive"},
+        {"flag": "-X", "description": "Append extensions", "example": "-X .php,.bak"},
+        {"flag": "-a", "description": "User-Agent", "example": "-a 'Mozilla/5.0'"}
+      ],
+      "examples": [
+        "dirb http://10.0.0.1 /usr/share/wordlists/dirb/common.txt",
+        "dirb http://10.0.0.1 /usr/share/wordlists/dirb/common.txt -X .php"
+      ],
+      "safety_notes": "Only brute-force targets you own or have authorization to test."
+    },
+    {
+      "name": "masscan",
+      "category": "pentest",
+      "description": "Fast TCP port scanner that can scan the entire Internet in under 6 minutes.",
+      "install": "sudo apt install masscan",
+      "commands": [
+        {"task": "scan top ports", "command": "sudo masscan <target> -p1-65535 --rate=1000", "description": "Scan all ports at high rate."},
+        {"task": "scan common ports", "command": "sudo masscan <target> -p22,80,443,8080 --rate=1000", "description": "Scan common ports."},
+        {"task": "output to file", "command": "sudo masscan <target> -p1-65535 --rate=1000 -oX scan.xml", "description": "Save scan to XML."}
+      ],
+      "flags": [
+        {"flag": "-p", "description": "Port range", "example": "-p1-65535"},
+        {"flag": "--rate", "description": "Packets per second", "example": "--rate=1000"},
+        {"flag": "-oX", "description": "XML output file", "example": "-oX scan.xml"}
+      ],
+      "examples": [
+        "sudo masscan 10.0.0.0/24 -p1-65535 --rate=1000",
+        "sudo masscan 10.0.0.1 -p22,80,443 --rate=500"
+      ],
+      "safety_notes": "Masscan is extremely fast and can overwhelm networks. Only scan targets/networks you own or are explicitly authorized to test."
+    }
+  ]
+}

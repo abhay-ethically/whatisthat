@@ -25,12 +25,8 @@ def print_command_response(response):
     print(f"{bot_name()}: {command(cmd['command'])}")
     say(f"Description: {cmd['description']}")
     if tool.get("safety_notes"):
-        print(say_msg(warning(tool["safety_notes"])))
+        say(warning(tool["safety_notes"]))
     print()
-
-
-def say_msg(text):
-    return f"{bot_name()}: {text}"
 
 
 def print_options_response(response):
@@ -63,7 +59,11 @@ def print_describe_response(response):
 
 def print_list_response(response):
     tools = response["tools"]
-    say("Available tools:")
+    category = response.get("category")
+    if category:
+        say(f"Tools in '{category}' category:")
+    else:
+        say("Available tools:")
     categories = {}
     for tool in tools:
         categories.setdefault(tool["category"], []).append(tool["name"])
@@ -202,6 +202,10 @@ def run_bot():
         elif rtype == "empty":
             say(response["text"])
         elif rtype == "greet":
+            say(response["text"])
+        elif rtype == "chitchat":
+            say(response["text"])
+        elif rtype == "general":
             say(response["text"])
         elif rtype == "help":
             say(response["text"])

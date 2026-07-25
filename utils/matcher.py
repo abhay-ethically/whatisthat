@@ -1,5 +1,6 @@
 """Intent detection, fuzzy tool matching, and context-aware responses for LinuxBot."""
 import json
+import random
 import re
 from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
@@ -72,8 +73,155 @@ TOOL_ALIASES = {
     "netstat": "ss",
     "msf": "metasploit",
     "msfconsole": "metasploit",
+    "msfvenom": "metasploit",
     "john the ripper": "john",
     "jtr": "john",
+    "aircrack": "aircrack-ng",
+    "airodump": "aircrack-ng",
+    "airmon": "aircrack-ng",
+}
+
+CHITCHAT_RESPONSES = {
+    r"\b(hi|hello|hey|hola|greetings|yo|sup)\b": [
+        "Hello! I'm LinuxBot. Ask me about Linux commands, networking tools, or pentest tools.",
+        "Hey there! Ready to help with Linux commands and security tools.",
+    ],
+    r"\bhow are you\b": "I'm running smoothly. What Linux command can I help you with today?",
+    r"\bwhat('s| is) your name\b": "I'm LinuxBot, your offline Linux command helper.",
+    r"\bwho are you\b": "I'm LinuxBot. I know about Linux, networking, and pentest tools — fully offline.",
+    r"\bwhat can you do\b": "I can suggest commands, explain flags, show examples, and guide you through tools. Type 'help' for ideas.",
+    r"\b(thank you|thanks|ty)\b": "You're welcome! Let me know if you need another command.",
+    r"\b(tell me a joke|joke|funny)\b": "Why do programmers prefer dark mode? Because light attracts bugs.",
+    r"\bhelp me\b": "Sure! Tell me what you want to do — e.g., scan ports, find files, crack a wifi handshake — and I'll suggest the right command.",
+}
+
+GENERAL_RESPONSES = {
+    r"\bwhat is linux\b": "Linux is a free, open-source operating system kernel. Distributions like Ubuntu, Debian, Fedora, and Kali Linux build on top of it.",
+    r"\bwhat is (kali linux|kali)\b": "Kali Linux is a Debian-based distribution designed for penetration testing and security auditing. It comes preloaded with hundreds of security tools.",
+    r"\bwhat is (pentest|penetration testing)\b": "Penetration testing is the practice of testing computer systems, networks, or web applications for security weaknesses with authorization.",
+    r"\bwhat is (hacking|ethical hacking)\b": "Hacking means exploring or modifying systems. Ethical hacking is done with permission to find and fix security issues.",
+    r"\bwhat is a firewall\b": "A firewall is a network security device or software that monitors and controls incoming and outgoing network traffic based on rules.",
+    r"\bwhat is an? (ids|intrusion detection system)\b": "An IDS (Intrusion Detection System) monitors network or system traffic for suspicious activity and alerts administrators.",
+    r"\bwhat is a vpn\b": "A VPN (Virtual Private Network) encrypts your internet connection and hides your IP address for privacy and security.",
+    r"\bwhat is an? (ips|intrusion prevention system)\b": "An IPS (Intrusion Prevention System) monitors traffic and can actively block detected threats, unlike an IDS which only alerts.",
+    r"\bwhat is (a |an )?(bash|shell)\b": "Bash is a Unix shell and command language. A shell reads your commands and translates them into instructions for the computer.",
+    r"\bwhat is (a |an )?(terminal|command line|cli)\b": "The command line interface (CLI) is a text-based way to interact with the operating system by typing commands instead of clicking icons.",
+    r"\bwhat is (root|sudo|superuser)\b": "Root is the superuser account on Linux with full system privileges. sudo lets an authorized user run commands as root temporarily.",
+    r"\bwhat is an? (ip address|ip)\b": "An IP address is a unique identifier assigned to a device on a network, used to route traffic. IPv4 looks like 192.168.1.1; IPv6 is longer and hexadecimal.",
+    r"\bwhat is (dns|domain name system)\b": "DNS translates human-readable domain names like example.com into IP addresses that computers use to communicate.",
+    r"\bwhat is a (mac address|mac)\b": "A MAC address is a hardware identifier burned into a network interface card. It is used for local network communication.",
+    r"\bwhat is (dhcp|dynamic host configuration protocol)\b": "DHCP automatically assigns IP addresses and network settings to devices when they join a network.",
+    r"\bwhat is (https|ssl|tls|http)\b": "HTTP transfers web pages. HTTPS adds encryption via SSL/TLS to protect data between your browser and the server.",
+    r"\bwhat is (ssh|secure shell)\b": "SSH is a protocol for securely connecting to and managing remote systems over an encrypted channel.",
+    r"\bwhat is a (port|network port)\b": "A port is a virtual point where network connections start or end. Different services listen on standard ports, e.g. 80 for HTTP and 22 for SSH.",
+    r"\bwhat is a (protocol|network protocol)\b": "A network protocol is a set of rules that define how devices exchange data over a network, such as TCP, UDP, IP, and HTTP.",
+    r"\bwhat is (tcp|udp)\b": "TCP is a reliable, connection-oriented protocol. UDP is faster but connectionless and does not guarantee delivery.",
+    r"\bwhat is (wireless|wi-fi|wifi)\b": "Wi-Fi uses radio waves to provide wireless network access, commonly using the 2.4 GHz and 5 GHz frequency bands.",
+    r"\bwhat is a (router|switch|access point)\b": "A router forwards traffic between networks. A switch connects devices within the same network. An access point provides wireless connectivity.",
+    r"\bwhat is (encryption|cryptography)\b": "Encryption scrambles data so only authorized parties can read it. Cryptography is the broader science of securing information.",
+    r"\bwhat is a (hash|hashing)\b": "A hash is a fixed-size value generated from data. Good hashes are one-way, making them useful for storing passwords and verifying file integrity.",
+    r"\bwhat is (malware|virus|trojan|worm|ransomware)\b": "Malware is malicious software. Viruses infect files, Trojans disguise themselves, worms spread independently, and ransomware encrypts data for ransom.",
+    r"\bwhat is (phishing|social engineering)\b": "Phishing tricks users into revealing credentials or sensitive data. Social engineering manipulates people into breaking security procedures.",
+    r"\bwhat is a (vulnerability|exploit|cve|zero day)\b": "A vulnerability is a weakness. An exploit takes advantage of it. CVEs are publicly tracked vulnerability IDs; a zero-day is an unpatched flaw.",
+    r"\bwhat is (reconnaissance|recon|footprinting)\b": "Reconnaissance is gathering information about a target before attacking, such as identifying hosts, ports, services, and employees.",
+    r"\bwhat is (enumeration|scanning)\b": "Enumeration extracts detailed information from a target, such as users, shares, and software versions. Scanning maps live hosts and open ports.",
+    r"\bwhat is (privilege escalation|privesc)\b": "Privilege escalation is gaining higher-level permissions on a system, e.g. from a regular user to root or administrator.",
+    r"\bwhat is (lateral movement|pivoting)\b": "Lateral movement or pivoting is moving from a compromised host to other systems inside the same network.",
+    r"\bwhat is (persistence|backdoor)\b": "Persistence maintains access to a compromised system after reboots. A backdoor provides hidden access.",
+    r"\bwhat is (credential stuffing|password spraying)\b": "Credential stuffing tries leaked username/password pairs. Password spraying tries a few common passwords against many accounts to avoid lockouts.",
+    r"\bwhat is (osi|osi model)\b": "The OSI model is a 7-layer conceptual framework for networking: Physical, Data Link, Network, Transport, Session, Presentation, Application.",
+    r"\bwhat is (kerberos|ldap|active directory|ad)\b": "Active Directory is Microsoft's directory service for managing users, computers, and policies. Kerberos is its main authentication protocol. LDAP queries directory data.",
+    r"\bwhat is (a |an )?(reverse shell|bind shell)\b": "A reverse shell has the target connect back to the attacker. A bind shell listens on the target for an incoming attacker connection.",
+    r"\bwhat is (a |an )?(dos|ddos)\b": "Denial of Service (DoS) floods a target to make it unavailable. Distributed DoS uses many machines, often a botnet.",
+    r"\bwhat is (a |an )?(mitm|man in the middle)\b": "A Man-in-the-Middle attack intercepts communication between two parties to eavesdrop or alter messages.",
+    r"\bwhat is (arp|arp spoofing)\b": "ARP maps IP addresses to MAC addresses. ARP spoofing poisons this mapping to redirect traffic through the attacker.",
+    r"\bwhat is (a |an )?(wordlist|dictionary attack)\b": "A wordlist is a file of candidate passwords or usernames. A dictionary attack tries each entry against a target.",
+    r"\bwhat is (a |an )?(botnet|c2|command and control)\b": "A botnet is a network of compromised devices controlled by an attacker. C2 (command and control) is the infrastructure used to manage them.",
+    r"\bwhat is (a |an )?(rootkit|keylogger)\b": "A rootkit hides malicious presence deep in the OS. A keylogger records keystrokes to steal passwords and other sensitive input.",
+}
+
+EXTRACTION_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "being", "been",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "must", "shall", "can", "need", "want",
+    "i", "you", "he", "she", "it", "we", "they", "me", "him", "her",
+    "my", "your", "his", "its", "our", "their", "this", "that", "these",
+    "those", "what", "which", "who", "whom", "whose", "where", "when",
+    "why", "how", "all", "any", "both", "each", "few", "more", "most",
+    "other", "some", "such", "no", "nor", "not", "only", "own", "same",
+    "so", "than", "too", "very", "just", "but", "and", "or", "yet", "for",
+    "on", "in", "at", "by", "with", "about", "against", "between", "into",
+    "through", "during", "before", "after", "above", "below", "from",
+    "up", "down", "of", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "if", "else", "because", "until", "while", "as",
+    "to",
+    "tell", "give", "show", "describe", "explain", "install", "list",
+    "search", "find", "look", "run", "use", "using", "command", "commands",
+    "tool", "tools", "flag", "flags", "option", "options", "task", "tasks",
+}
+
+# Filler prefixes we can strip from a task query without losing meaning
+FILLER_PREFIXES = [
+    "how do i", "how can i", "how would i", "how should i",
+    "i want to", "i need to", "i would like to", "i'd like to",
+    "can you", "could you", "would you", "will you",
+    "please", "show me how to", "tell me how to", "give me the",
+    "what is the", "what's the", "how to", "command to", "way to",
+    "method to", "steps to",
+]
+
+# Spoken-language synonyms mapped to canonical command/task words
+TASK_SYNONYMS = {
+    "display": "show",
+    "lookup": "search",
+    "look up": "search",
+    "look for": "find",
+    "seek": "find",
+    "retrieve": "get",
+    "fetch": "get",
+    "erase": "delete",
+    "remove": "delete",
+    "kill": "stop",
+    "terminate": "stop",
+    "halt": "stop",
+    "linked": "connected",
+    "joined": "connected",
+    "active hosts": "live hosts",
+    "running hosts": "live hosts",
+    "ports open": "open ports",
+    "open port": "open ports",
+    "port scanning": "port scan",
+    "portscanner": "port scan",
+    "send file": "transfer file",
+    "move file": "transfer file",
+    "copy file": "transfer file",
+    "file copy": "transfer file",
+    "wi fi": "wifi",
+    "wi-fi": "wifi",
+    "wireless network": "wifi",
+    "cracker": "crack",
+    "cracking": "crack",
+    "bruteforce": "brute force",
+    "brute-force": "brute force",
+    "web scanner": "web scan",
+    "web scanning": "web scan",
+    "sql injection": "sqlmap",
+    "sqlmap scan": "sqlmap",
+    "enumerate shares": "enum4linux",
+    "list users": "enumerate users",
+    "list files": "find file",
+    "search file": "find file",
+    "locate file": "find file",
+    "sniff": "capture",
+    "sniffing": "capture",
+    "packet sniffing": "capture packet",
+    "change permission": "change permissions",
+    "file permission": "change permissions",
+    "file permissions": "change permissions",
+    "banner grab": "banner grabbing",
+    "grab banner": "banner grabbing",
+    "sub domain": "subdomain",
+    "sub-domain": "subdomain",
 }
 
 # Pronouns / context words that should reuse the last discussed tool
@@ -94,6 +242,7 @@ class LinuxBot:
         self.kb = self._load_kb()
         self.tools = self.kb.get("tools", [])
         self._merge_kali_tools()
+        self._merge_enrichments()
         self.tool_names = [t["name"].lower() for t in self.tools]
         self.categories = self.kb.get("categories", [])
         # Conversation context
@@ -120,6 +269,20 @@ class LinuxBot:
             if tool["name"].lower() not in existing:
                 self.tools.append(tool)
 
+    def _merge_enrichments(self):
+        enrich_path = self.data_dir / "enrichments.json"
+        if not enrich_path.exists():
+            return
+        with open(enrich_path, "r", encoding="utf-8") as f:
+            enrich_kb = json.load(f)
+        existing = {t["name"].lower(): t for t in self.tools}
+        for tool in enrich_kb.get("tools", []):
+            name = tool["name"].lower()
+            if name in existing:
+                existing[name].update(tool)
+            else:
+                self.tools.append(tool)
+
     def _load_session(self):
         self.favorites_path = self.data_dir / "favorites.json"
         if self.favorites_path.exists():
@@ -142,8 +305,50 @@ class LinuxBot:
         text = re.sub(r"\s+", " ", text)
         return text
 
-    def _detect_intent(self, text):
+    def _normalize_task_query(self, text):
+        """Normalize a user query for task/command matching."""
         norm = self._normalize(text)
+
+        # Expand common contractions
+        contractions = {
+            "whats": "what is",
+            "whatre": "what are",
+            "hows": "how is",
+            "wheres": "where is",
+            "whos": "who is",
+            "im": "i am",
+            "youre": "you are",
+            "theyre": "they are",
+            "isnt": "is not",
+            "arent": "are not",
+            "dont": "do not",
+            "doesnt": "does not",
+            "cant": "cannot",
+            "wont": "will not",
+            "shouldnt": "should not",
+            "wouldnt": "would not",
+        }
+        for bad, good in contractions.items():
+            norm = re.sub(r"\b" + bad + r"\b", good, norm)
+
+        # Strip leading filler phrases
+        for prefix in FILLER_PREFIXES:
+            norm = re.sub(r"^\s*" + re.escape(prefix) + r"\b\s*", "", norm)
+
+        # Map synonyms to canonical words
+        for phrase, canon in TASK_SYNONYMS.items():
+            norm = re.sub(r"\b" + re.escape(phrase) + r"\b", canon, norm)
+
+        return re.sub(r"\s+", " ", norm).strip()
+
+    def _detect_intent(self, text):
+        norm = self._normalize_task_query(text)
+
+        # Catch "list/show <category> tools" even when other words sit between them
+        if re.search(r"\b(list|show)\b.*\btools?\b", norm) or \
+           re.search(r"\btools?\b.*\b(list|show)\b", norm):
+            return "list"
+
         scores = {}
         for intent, keywords in INTENT_KEYWORDS.items():
             score = 0
@@ -163,6 +368,22 @@ class LinuxBot:
                 return True
         return False
 
+    def _detect_chitchat(self, text):
+        lower = text.lower()
+        for pattern, response in CHITCHAT_RESPONSES.items():
+            if re.search(pattern, lower):
+                if isinstance(response, list):
+                    return random.choice(response)
+                return response
+        return None
+
+    def _detect_general(self, text):
+        lower = text.lower()
+        for pattern, response in GENERAL_RESPONSES.items():
+            if re.search(pattern, lower):
+                return response
+        return None
+
     def _extract_tool(self, text):
         norm = self._normalize(text)
 
@@ -170,29 +391,40 @@ class LinuxBot:
         if self._uses_pronoun(text) and self.last_tool_name:
             return self.last_tool_name
 
-        # Direct alias handling
+        # Direct alias handling (exact word match)
         for alias, real in TOOL_ALIASES.items():
             if re.search(r"(?:^|\s)" + re.escape(alias) + r"(?:\s|$)", norm):
                 return real
 
-        # Direct tool name match
+        # Direct tool name match (word boundaries)
         for name in self.tool_names:
             if re.search(r"(?:^|\s)" + re.escape(name) + r"(?:\s|$)", norm):
                 return name
 
-        # Fuzzy match against full normalized text
-        matches = get_close_matches(norm, self.tool_names, n=1, cutoff=0.6)
-        if matches:
-            return matches[0]
+        # Fuzzy matching is intentionally disabled here: too many conversational
+        # words (e.g. "scan", "change", "life") are substrings of tool names and
+        # produced false positives. Task/search fallbacks handle tool-free queries.
+        return None
 
-        # Fuzzy match per token
-        for token in norm.split():
-            if len(token) < 3:
-                continue
-            matches = get_close_matches(token, self.tool_names, n=1, cutoff=0.75)
-            if matches:
-                return matches[0]
-
+    def _extract_category(self, text):
+        """Return a category name if the user is asking for tools in a category."""
+        norm = self._normalize_task_query(text)
+        available = sorted({t.get("category", "") for t in self.tools if t.get("category")})
+        category_aliases = {
+            "core": ["core", "linux", "basic", "system", "general"],
+            "networking": ["networking", "network", "net", "recon", "reconnaissance"],
+            "pentest": ["pentest", "penetration", "security", "hacking", "exploit"],
+            "kali": ["kali", "kalitools"],
+        }
+        # Exact match first
+        for cat in available:
+            if re.search(r"\b" + re.escape(cat) + r"\b", norm):
+                return cat
+        # Alias match
+        for cat, aliases in category_aliases.items():
+            for alias in aliases:
+                if re.search(r"\b" + re.escape(alias) + r"\b", norm):
+                    return cat
         return None
 
     def _find_tool(self, name):
@@ -205,7 +437,7 @@ class LinuxBot:
     def _find_command_by_task(self, query, top_n=3):
         """Search command task/descriptions across all tools using fuzzy ratio."""
         from difflib import SequenceMatcher
-        query_norm = self._normalize(query)
+        query_norm = self._normalize_task_query(query)
         stop_words = {
             "a", "an", "the", "to", "for", "in", "on", "of", "and", "or",
             "is", "are", "was", "were", "with", "i", "want", "need", "me",
@@ -237,7 +469,11 @@ class LinuxBot:
                     "connected": ["discover", "network", "arp"],
                     "find file": ["search", "find", "locate"],
                     "change owner": ["chown", "owner"],
-                    "permission": ["chmod", "permission", "access"],
+                    "change permission": ["chmod"],
+                    "change permissions": ["chmod"],
+                    "file permission": ["chmod"],
+                    "file permissions": ["chmod"],
+                    "chmod": ["chmod"],
                     "process": ["ps", "kill", "top", "monitor"],
                     "monitor traffic": ["tcpdump", "tshark", "capture"],
                     "brute force": ["brute", "hydra", "john", "hashcat"],
@@ -246,19 +482,25 @@ class LinuxBot:
                     "sql injection": ["sqlmap", "sql"],
                     "enumerate": ["enum4linux", "enumerate", "discovery"],
                     "reverse shell": ["nc", "netcat", "shell"],
+                    "capture packet": ["tcpdump", "tshark", "capture"],
+                    "password crack": ["john", "hashcat", "crack"],
+                    "directory brute": ["gobuster", "dirb", "ffuf", "directory"],
+                    "subdomain": ["dnsrecon", "gobuster", "subdomain"],
+                    "banner grab": ["netcat", "nc", "banner"],
                 }
                 for phrase, hints in direct_phrases.items():
                     if phrase in query_norm:
                         for hint in hints:
-                            if hint in task or hint in desc:
+                            if hint in task or hint in desc or hint in cmd.get("command", ""):
                                 score += 25
                 if score > 10:
                     matches.append((score, tool, cmd))
         matches.sort(key=lambda x: x[0], reverse=True)
+        matches = [m for m in matches if m[0] >= 25]
         return matches[:top_n]
 
     def _best_command_match(self, tool, query):
-        query_norm = self._normalize(query)
+        query_norm = self._normalize_task_query(query)
         stop_words = {
             "a", "an", "the", "to", "for", "in", "on", "of", "and", "or",
             "is", "are", "with", "i", "want", "need", "me", "give", "show",
@@ -290,6 +532,10 @@ class LinuxBot:
                 "transfer file": ["transfer", "send file", "receive file"],
                 "brute force": ["brute", "dictionary", "password"],
                 "full scan": ["comprehensive scan", "all ports"],
+                "full enumeration": ["enum4linux", "enumerate", "all simple enumeration"],
+                "crack password": ["john", "hashcat", "crack"],
+                "capture packet": ["tcpdump", "tshark", "capture"],
+                "put interface in monitor mode": ["airmon-ng", "monitor mode"],
             }
             for phrase, hints in phrase_boosts.items():
                 if phrase in query_norm:
@@ -300,6 +546,10 @@ class LinuxBot:
             if score > best_score:
                 best_score = score
                 best = cmd
+
+        # Only return a match if it is reasonably confident
+        if best_score < 20:
+            return None
         return best
 
     def _explain_flags(self, text):
@@ -330,11 +580,10 @@ class LinuxBot:
         return results
 
     def _search_kb(self, query):
-        query_norm = self._normalize(query)
-        words = set(query_norm.split())
+        query_norm = self._normalize_task_query(query)
+        words = set([w for w in query_norm.split() if w not in EXTRACTION_STOPWORDS])
         results = []
         for tool in self.tools:
-            score = 0
             text = " ".join([
                 tool.get("name", ""),
                 tool.get("category", ""),
@@ -345,13 +594,67 @@ class LinuxBot:
             for flag in tool.get("flags", []):
                 text += " " + flag.get("flag", "") + " " + flag.get("description", "")
             text = self._normalize(text)
+
+            name = tool.get("name", "").lower()
+            score = 0
             for word in words:
-                if word in text:
+                if word == name:
+                    score += 10
+                elif name.startswith(word) or name.endswith(word):
+                    score += 5
+                elif word in name.split("-"):
+                    score += 3
+                elif word in text:
                     score += 1
             if score > 0:
                 results.append((score, tool))
-        results.sort(key=lambda x: x[0], reverse=True)
+        results.sort(key=lambda x: (x[0], x[1]["name"]), reverse=True)
         return [t for _, t in results[:5]]
+
+    def _suggest_tool_names(self, text, max_suggestions=3):
+        """Return close tool-name matches for typo'd or unknown tool words."""
+        norm = self._normalize_task_query(text)
+        candidates = []
+        for token in norm.split():
+            if len(token) < 3 or token in EXTRACTION_STOPWORDS:
+                continue
+            for m in get_close_matches(token, self.tool_names, n=3, cutoff=0.75):
+                ratio = SequenceMatcher(None, token, m).ratio()
+                if ratio >= 0.75:
+                    candidates.append((ratio, m))
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        seen = set()
+        out = []
+        for _, name in candidates:
+            if name not in seen:
+                seen.add(name)
+                out.append(name)
+                if len(out) >= max_suggestions:
+                    break
+        return out
+
+    def _smart_fallback(self, text):
+        results = self._search_kb(text)
+        if results:
+            return {"type": "search", "query": text, "tools": results}
+        suggestions = self._suggest_tool_names(text)
+        if suggestions:
+            did_you_mean = ", ".join(suggestions)
+            return {
+                "type": "unknown",
+                "text": (
+                    "I'm not sure I have a command for that. Did you mean one of these tools? "
+                    f"{did_you_mean}. Try asking for a tool by name or a task like 'scan ports'."
+                ),
+            }
+        return {
+            "type": "unknown",
+            "text": (
+                "I'm not sure I have a command for that. Try asking for a tool by name, "
+                "a task like 'scan ports', or type 'help' for examples. I can also explain "
+                "flags, show examples, and guide you through tools."
+            ),
+        }
 
     def _update_context(self, tool_name=None, command=None, response=None, intent=None):
         if tool_name:
@@ -368,11 +671,37 @@ class LinuxBot:
         if not text:
             return {"type": "empty", "text": "I didn't catch that. Type 'help' for what I can do."}
 
+        # Small talk / general questions first so casual words don't look like tools
+        chitchat = self._detect_chitchat(text)
+        if chitchat:
+            return {"type": "chitchat", "text": chitchat}
+
+        general = self._detect_general(text)
+        if general:
+            return {"type": "general", "text": general}
+
+        if re.search(r"\brandom command\b", text.lower()):
+            tool = random.choice(self.tools)
+            commands = tool.get("commands", [])
+            if commands:
+                cmd = random.choice(commands)
+                self._update_context(
+                    tool_name=tool["name"],
+                    command=cmd["command"],
+                    response=f"{tool['name']}: {cmd['task']}",
+                    intent="command",
+                )
+                return {"type": "command", "tool": tool, "command": cmd}
+            self._update_context(tool_name=tool["name"], intent="describe")
+            return {"type": "describe", "tool": tool}
+
         intent = self._detect_intent(text)
         tool_name = self._extract_tool(text)
 
         # Inherit the last discussed tool for follow-up questions like "show examples"
-        context_intents = {"describe", "options", "examples", "install", "all_commands"}
+        # Note: describe is handled by the pronoun-only fallback so a random
+        # "what is ..." question doesn't inherit the previous tool.
+        context_intents = {"options", "examples", "install", "all_commands", "guide"}
         if not tool_name and self.last_tool_name and intent in context_intents:
             tool_name = self.last_tool_name
 
@@ -380,7 +709,9 @@ class LinuxBot:
         if self._uses_pronoun(text) and self.last_tool_name and not intent:
             intent = "describe"
 
-        # Greetings
+        if intent == "exit":
+            return {"type": "exit", "text": "Goodbye! Stay safe out there."}
+
         if intent == "greet":
             self._update_context(intent="greet")
             return {
@@ -391,10 +722,7 @@ class LinuxBot:
                 ),
             }
 
-        if intent == "exit":
-            return {"type": "exit", "text": "Goodbye! Stay safe out there."}
-
-        if intent == "help" or (intent is None and not tool_name):
+        if intent == "help":
             return {
                 "type": "help",
                 "text": (
@@ -409,14 +737,20 @@ class LinuxBot:
                     "  'all commands for nmap'\n"
                     "  'how to install nmap'\n"
                     "  'guide me through nmap' or 'how to use nmap'\n"
-                    "  'list tools'\n"
+                    "  'list tools' or 'list networking tools'\n"
                     "  'search sql injection'\n"
                     "  'save last' (save the last command shown)\n"
-                    "  'run it' (execute the last command with confirmation)"
+                    "  'run it' (execute the last command with confirmation)\n"
+                    "  'give me a random command'\n\n"
+                    "You can ask in normal English, e.g. 'how do I check open ports?' or 'what is Linux?'."
                 ),
             }
 
         if intent == "list":
+            category = self._extract_category(text)
+            if category:
+                tools = [t for t in self.tools if t.get("category", "").lower() == category]
+                return {"type": "list", "tools": tools, "category": category}
             return {"type": "list", "tools": self.tools}
 
         if intent == "search":
@@ -508,7 +842,12 @@ class LinuxBot:
 
         if intent == "describe":
             if not tool_name:
-                return {"type": "describe", "text": "Which tool do you want me to describe? Try: 'describe nmap' or 'what is nmap'."}
+                # Maybe the user is asking about flags like "what is -l"
+                flags = self._explain_flags(text)
+                if flags:
+                    self._update_context(intent="explain")
+                    return {"type": "explain", "flags": flags}
+                return self._smart_fallback(text)
             tool = self._find_tool(tool_name)
             if tool:
                 self._update_context(tool_name=tool["name"], intent="describe")
@@ -532,6 +871,27 @@ class LinuxBot:
                         "tool": tool,
                         "command": cmd,
                     }
+                # If the user started with the tool name, show all its commands
+                # rather than guessing a different tool from the rest of the query.
+                normalized_words = self._normalize(text).split()
+                if normalized_words and (normalized_words[0] == tool_name or normalized_words[0] in TOOL_ALIASES):
+                    self._update_context(tool_name=tool["name"], intent="all_commands")
+                    return {"type": "all_commands", "tool": tool}
+
+                # If a longer query mentions a tool elsewhere, the user may be
+                # describing a task using that tool name (e.g. "brute force ssh").
+                if len(text) >= 14:
+                    cmd_matches = self._find_command_by_task(text, top_n=3)
+                    if cmd_matches and cmd_matches[0][0] >= 30:
+                        score, t, c = cmd_matches[0]
+                        self._update_context(
+                            tool_name=t["name"],
+                            command=c["command"],
+                            response=f"{t['name']}: {c['task']}",
+                            intent="command",
+                        )
+                        return {"type": "command", "tool": t, "command": c}
+
                 # If no good command match but tool mentioned, show all commands
                 self._update_context(tool_name=tool["name"], intent="all_commands")
                 return {"type": "all_commands", "tool": tool}
@@ -552,18 +912,8 @@ class LinuxBot:
                 "command": cmd,
             }
 
-        # Fallback: search across all tools
-        results = self._search_kb(text)
-        if results:
-            return {"type": "search", "query": text, "tools": results}
-
-        return {
-            "type": "unknown",
-            "text": (
-                "I'm not sure I understood. Try asking for a command, description, "
-                "or flags. Type 'help' for examples."
-            ),
-        }
+        # Smart fallback: search, then suggest help
+        return self._smart_fallback(text)
 
     def get_favorites(self):
         return self.favorites

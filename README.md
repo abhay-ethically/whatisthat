@@ -21,11 +21,17 @@ No internet, no API keys, no model downloads — just Python 3 and a local knowl
 - ✅ Zero external dependencies (Python standard library only)
 - ✅ Conversation context memory — ask about "this tool" or "it"
 - ✅ Covers Core Linux, Networking/Recon, and Pentest tools
-- ✅ 795+ tool entries, including the full Kali Linux tools list
+- ✅ 795+ tool entries, including the full Kali Linux tools list (`data/kali_tools.json`)
 - ✅ Suggests commands with descriptions and safety warnings
 - ✅ Explains flags and options
 - ✅ Shows examples, all commands, install steps, and step-by-step guides
 - ✅ Searches the knowledge base
+- ✅ Understands normal English: contractions, filler words, and synonyms
+- ✅ Category browsing (e.g. `list networking tools`)
+- ✅ Suggests "did you mean..." for likely typos
+- ✅ Smart fallback when a query isn't a direct match
+- ✅ Handles small talk ("hi", "how are you", "who are you") and general tech questions
+- ✅ Can suggest a random command on request
 - ✅ Saves favorite commands locally
 - ✅ Can run suggested commands after explicit confirmation
 - ✅ Safety blocklist for dangerous command patterns
@@ -84,10 +90,13 @@ LinuxBot: Execution cancelled.
 | All commands | `all commands for nmap` |
 | Install steps | `how to install nmap` |
 | Step-by-step guide | `guide me through nmap`, `how to use nmap` |
-| List tools | `list tools`, `show tools` |
+| List tools | `list tools`, `list networking tools`, `show pentest tools` |
 | Search | `search sql injection`, `find command for wifi` |
 | Save command | `save last`, `favorite` |
 | Run last command | `run it`, `execute` |
+| Chat / small talk | `hi`, `how are you`, `what is your name`, `tell me a joke` |
+| General knowledge | `what is Linux`, `what is Kali Linux`, `what is a firewall` |
+| Random command | `give me a random command` |
 | Help | `help`, `usage` |
 | Exit | `bye`, `exit`, `quit` |
 
@@ -104,7 +113,7 @@ LinuxBot: Execution cancelled.
 
 ## Extending the Knowledge Base
 
-All tool data lives in `data/knowledge_base.json`. To add a new tool, copy the JSON schema of an existing tool and change the values:
+All tool data lives in `data/knowledge_base.json`. The bot also merges entries from `data/kali_tools.json` (the full Kali Linux package list) and applies curated enrichments from `data/enrichments.json` for popular tools. To add a new tool, copy the JSON schema of an existing tool and change the values:
 
 ```json
 {
@@ -140,7 +149,9 @@ WebCamm/
 ├── run.sh                   # Launcher script
 ├── README.md                # This file
 ├── data/
-│   ├── knowledge_base.json  # Tool documentation
+│   ├── knowledge_base.json  # Core tool documentation
+│   ├── kali_tools.json      # Full Kali Linux package list
+│   ├── enrichments.json     # Curated commands/flags for popular Kali tools
 │   └── favorites.json       # Saved commands (created at runtime)
 └── utils/
     ├── matcher.py           # Intent detection and fuzzy matching
